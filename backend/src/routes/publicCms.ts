@@ -1,7 +1,5 @@
 import { FastifyPluginAsync } from 'fastify'
-import { PrismaClient } from '@prisma/client'
-
-const prisma = new PrismaClient()
+import { prisma } from '../server'
 
 const publicCmsRoutes: FastifyPluginAsync = async (app) => {
   // Public Endpoint to fetch active banners
@@ -42,9 +40,9 @@ const publicCmsRoutes: FastifyPluginAsync = async (app) => {
     return reply.send({ success: true, data: page })
   })
 
-  // Public Endpoint to fetch active settings
+  // Only settings explicitly marked public may leave this endpoint.
   app.get('/settings', async (request, reply) => {
-    const settings = await prisma.setting.findMany()
+    const settings = await prisma.setting.findMany({ where: { isPublic: true } })
     return reply.send({ success: true, data: settings })
   })
 }

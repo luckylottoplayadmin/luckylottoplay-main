@@ -30,9 +30,6 @@ export const authService = {
   resendVerification: (email: string) =>
     api.post<ApiResponse>('/auth/resend-verification', { email }),
 
-  skipVerification: (email: string) =>
-    api.post<ApiResponse>('/auth/skip-verification', { email }),
-
   forgotPassword: (email: string) =>
     api.post<ApiResponse>('/auth/forgot-password', { email }),
 

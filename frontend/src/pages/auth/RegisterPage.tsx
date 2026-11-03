@@ -114,15 +114,6 @@ export default function RegisterPage() {
     onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to resend email')
   })
 
-  const skipMutation = useMutation({
-    mutationFn: () => authService.skipVerification(registeredEmail),
-    onSuccess: () => {
-      toast.success('Account created! You can verify your email later in your profile settings.')
-      navigate('/login')
-    },
-    onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to skip verification')
-  })
-
   const handleNext = async () => {
     const valid = await trigger(['firstName', 'lastName', 'email', 'country', 'phone', 'dateOfBirth'])
     if (valid) setStep(2)
@@ -330,16 +321,6 @@ export default function RegisterPage() {
                       style={{ color: 'var(--color-primary)' }}
                     >
                       {resendMutation.isPending ? 'Sending...' : "Didn't receive it? Resend code"}
-                    </button>
-                    
-                    <button 
-                      type="button"
-                      className="btn btn-ghost btn-sm" 
-                      onClick={() => skipMutation.mutate()}
-                      disabled={skipMutation.isPending}
-                      style={{ color: 'var(--text-secondary)' }}
-                    >
-                      {skipMutation.isPending ? 'Skipping...' : 'Skip for now'}
                     </button>
                   </div>
                 </div>

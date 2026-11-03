@@ -549,68 +549,14 @@ export default async function authRoutes(app: FastifyInstance) {
     return reply.send({ success: true, message: 'Email verified successfully' })
   })
 
-  // POST /auth/skip-verification - Create user account directly when skipping email verification
-  app.post('/skip-verification', async (request, reply) => {
-    const { email } = forgotPasswordSchema.parse(request.body)
-
-    const existingUser = await prisma.user.findUnique({ where: { email } })
-    if (existingUser) {
-      return reply.send({ success: true, message: 'Account already created' })
-    }
-
-    const pendingDataStr = await redis.get(`pending_reg:${email}`)
-    if (!pendingDataStr) {
-      return reply.status(404).send({ success: false, error: 'Registration expired or user not found. Please register again.' })
-    }
-
-    const body = JSON.parse(pendingDataStr)
-
-    let referrerId: string | undefined
-    if (body.referralCode) {
-      const referrer = await prisma.user.findFirst({
-        where: { referralCode: body.referralCode },
-      })
-      referrerId = referrer?.id
-    }
-
-    if (!body.passwordHash || body.password) {
-      await redis.del(`pending_reg:${email}`)
-      return reply.status(400).send({ success: false, error: 'Please register again.' })
-    }
-    const passwordHash = body.passwordHash
-
-    const newUser = await prisma.$transaction(async (tx) => {
-      const createdUser = await tx.user.create({
-        data: {
-          email: body.email,
-          username: body.username,
-          passwordHash,
-          firstName: body.firstName,
-          lastName: body.lastName,
-          country: body.country,
-          phone: body.phone,
-          dateOfBirth: body.dateOfBirth ? new Date(body.dateOfBirth) : undefined,
-          referredById: referrerId,
-          referralCode: randomBytes(6).toString('base64url').toUpperCase().substring(0, 8),
-          emailVerified: false,
-          status: 'ACTIVE',
-        },
-      })
-
-      await tx.wallet.create({ data: { userId: createdUser.id } })
-      await tx.notificationPreference.create({ data: { userId: createdUser.id } })
-
-      return createdUser
+  // Keep an explicit denial for old clients; never create accounts or award
+  // referral commissions without the email verification flow.
+  app.post('/skip-verification', async (_request, reply) => {
+    return reply.status(403).send({
+      success: false,
+      error: 'Email verification is required. Please verify the code sent to your email.',
     })
-
-    processAffiliateCommission({ referredUserId: newUser.id, type: 'SIGNUP' }).catch(console.error)
-    await auditLog(newUser.id, 'REGISTER', 'User', newUser.id, undefined, { email: newUser.email, skippedVerification: true }, request)
-    await redis.del(`pending_reg:${email}`)
-    await redis.del(`email_verify:${email}`)
-
-    return reply.send({ success: true, message: 'Account created! You can verify your email later in your profile settings.' })
   })
-
 
   // POST /auth/forgot-password
   app.post('/forgot-password', {

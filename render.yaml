@@ -82,6 +82,9 @@ services:
         name: X-Content-Type-Options
         value: nosniff
       - path: /*
+        name: Strict-Transport-Security
+        value: max-age=31536000
+      - path: /*
         name: Referrer-Policy
         value: strict-origin-when-cross-origin
       - path: /*
