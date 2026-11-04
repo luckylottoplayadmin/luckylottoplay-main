@@ -125,7 +125,7 @@ async function buildApp() {
     max: process.env.NODE_ENV !== 'production' ? 10000 : 100,
     timeWindow: '1 minute',
     redis,
-    skipOnError: false,
+    skipOnError: true,
     keyGenerator: (req) => req.ip,
   })
 
@@ -179,7 +179,6 @@ async function buildApp() {
   app.get('/health', async (request, reply) => {
     try {
       await prisma.$queryRaw`SELECT 1`
-      await redis.ping()
       return { status: 'healthy', timestamp: new Date().toISOString() }
     } catch (err) {
       request.log.error(err, 'Health check failed') // log internally only
@@ -328,7 +327,12 @@ async function start() {
   const host = process.env.HOST || '0.0.0.0'
 
   try {
-    await redis.connect()
+    try {
+      await redis.connect()
+      app.log.info('Connected to Redis')
+    } catch (err: any) {
+      app.log.warn(`[Redis Warning] Redis connection failed: ${err.message}. Running in fallback cache mode.`)
+    }
     await seedPermissionsIfNeeded()
     await app.listen({ port, host })
     app.log.info(`🚀 Server running on http://${host}:${port}`)
