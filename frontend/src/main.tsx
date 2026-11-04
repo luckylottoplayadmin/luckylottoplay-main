@@ -6,6 +6,7 @@ import { Toaster } from 'react-hot-toast'
 import ScrollToTop from '@/components/ScrollToTop'
 import App from './App'
 import '@/styles/index.css'
+import '@/styles/desktop-scale.css'
 import { useThemeStore } from '@/store/themeStore'
 
 // Apply saved theme before first render

@@ -1,0 +1,6 @@
+/* Apply 125% app zoom to desktop layouts, preserving existing mobile scaling. */
+@media (min-width: 1025px) {
+  html {
+    zoom: 125%;
+  }
+}
