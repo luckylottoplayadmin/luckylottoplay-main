@@ -11,6 +11,7 @@ export default function WithdrawPage() {
   const [amount, setAmount] = useState('')
   const [totp, setTotp] = useState('')
   const { user } = useAuthStore()
+  const couponAppUrl = import.meta.env.VITE_COUPON_APP_URL || 'https://coupon-frontend-e8b3.onrender.com'
 
   const { data: wallet } = useQuery({
     queryKey: ['wallet'],
@@ -111,11 +112,29 @@ export default function WithdrawPage() {
             </div>
           )}
 
+          <div className="alert alert-info" role="note" aria-label="How withdrawals work">
+            <Info size={18} className="alert-icon" style={{ flexShrink: 0 }} />
+            <div style={{ minWidth: 0 }}>
+              <strong>How withdrawals work</strong>
+              <div style={{ fontSize: '13px', lineHeight: 1.6, marginTop: '6px' }}>
+                First, create a <strong>CouponWorld</strong> account using the <strong>same email address</strong> as your Lucky Lotto Play account.
+                {user?.email && <div style={{ marginTop: '4px', overflowWrap: 'anywhere' }}>Use this email: <strong>{user.email}</strong></div>}
+                <p style={{ margin: '8px 0 0' }}>
+                  Enter the amount and verification code below, then select <strong>Transfer Now</strong>.
+                  Your funds will be transferred to your <strong>CouponWorld wallet</strong>, where you can complete your withdrawal.
+                </p>
+              </div>
+              <a href={couponAppUrl} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-gold" style={{ marginTop: '12px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                Open CouponWorld <ArrowUpRight size={16} aria-hidden="true" />
+              </a>
+            </div>
+          </div>
+
           <div className="alert alert-info">
             <Info size={18} className="alert-icon" />
             <div>
               <strong>Available to Transfer: {available.toFixed(2)} Coins</strong>
-              <div style={{ fontSize: '13px', marginTop: '4px' }}>Bonus balances cannot be transferred. Transfers are instant.</div>
+              <div style={{ fontSize: '13px', marginTop: '4px' }}>Bonus balances cannot be transferred. Your transfer status will appear after submission.</div>
             </div>
           </div>
 
