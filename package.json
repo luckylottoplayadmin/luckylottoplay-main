@@ -11,7 +11,7 @@
     "db:generate": "prisma generate",
     "db:seed": "tsx backend/src/seed.ts",
     "db:studio": "prisma studio",
-    "test": "vitest run --config backend/vitest.config.ts"
+    "test": "vitest run --config backend/vitest.config.mts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1161.0",
