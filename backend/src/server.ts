@@ -187,21 +187,27 @@ async function buildApp() {
   })
 
   // ── Routes ────────────────────────────────────────────
-  await app.register(authRoutes, { prefix: '/auth' })
-  await app.register(userRoutes, { prefix: '/users' })
-  await app.register(walletRoutes, { prefix: '/wallet' })
-  await app.register(gameRoutes, { prefix: '/games' })
-  await app.register(ticketRoutes, { prefix: '/tickets' })
-  await app.register(drawRoutes, { prefix: '/draws' })
-  await app.register(adminRoutes, { prefix: '/admin' })
-  await app.register(affiliateRoutes, { prefix: '/affiliates' })
-  await app.register(notificationRoutes, { prefix: '/notifications' })
-  await app.register(supportRoutes, { prefix: '/support' })
-  await app.register(publicCmsRoutes, { prefix: '/cms' })
-  await app.register(reportRoutes, { prefix: '/reports' })
-  await app.register(paymentRoutes, { prefix: '/payments' })
-  await app.register(settingsRoutes, { prefix: '/settings' })
-  await app.register(rbacRoutes, { prefix: '/rbac' })
+  const registerAllRoutes = async (instance: FastifyInstance) => {
+    await instance.register(authRoutes, { prefix: '/auth' })
+    await instance.register(userRoutes, { prefix: '/users' })
+    await instance.register(walletRoutes, { prefix: '/wallet' })
+    await instance.register(gameRoutes, { prefix: '/games' })
+    await instance.register(ticketRoutes, { prefix: '/tickets' })
+    await instance.register(drawRoutes, { prefix: '/draws' })
+    await instance.register(adminRoutes, { prefix: '/admin' })
+    await instance.register(affiliateRoutes, { prefix: '/affiliates' })
+    await instance.register(notificationRoutes, { prefix: '/notifications' })
+    await instance.register(supportRoutes, { prefix: '/support' })
+    await instance.register(publicCmsRoutes, { prefix: '/cms' })
+    await instance.register(reportRoutes, { prefix: '/reports' })
+    await instance.register(paymentRoutes, { prefix: '/payments' })
+    await instance.register(settingsRoutes, { prefix: '/settings' })
+    await instance.register(rbacRoutes, { prefix: '/rbac' })
+  }
+
+  // Register routes at root level and also with /api prefix for proxy/client compatibility
+  await app.register(registerAllRoutes)
+  await app.register(registerAllRoutes, { prefix: '/api' })
 
   // ── Global error handler ──────────────────────────────
   app.setErrorHandler<FastifyError>(async (error, request, reply) => {
