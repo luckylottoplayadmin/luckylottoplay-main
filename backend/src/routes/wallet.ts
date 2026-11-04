@@ -7,6 +7,7 @@ import { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { prisma, redis } from '../server'
 import { authenticate, requireAdmin, requireVerifiedEmail, auditLog } from '../middleware/auth'
+import { sensitiveRateLimit } from '../middleware/sensitiveRateLimit'
 import { processAffiliateCommission } from '../services/affiliate'
 import { randomUUID } from 'crypto'
 import { submitCouponTransfer } from '../services/couponTransfer'
@@ -163,7 +164,7 @@ export default async function walletRoutes(app: FastifyInstance) {
 
   // POST /wallet/withdraw - Request withdrawal
   app.post('/withdraw', {
-    preHandler: [authenticate, requireVerifiedEmail],
+    preHandler: [authenticate, requireVerifiedEmail, sensitiveRateLimit({ max: 5, timeWindowMs: 60 * 60 * 1000, keyPrefix: 'wallet:withdraw' })],
     config: { rateLimit: { max: 5, timeWindow: '1 hour' } },
   }, async (request, reply) => {
     return reply.status(410).send({ success: false, code: 'DIRECT_PAYMENTS_DISABLED',
@@ -172,7 +173,7 @@ export default async function walletRoutes(app: FastifyInstance) {
 
   // POST /wallet/transfer - Transfer winnings to Coupon Wallet
   app.post('/transfer', {
-    preHandler: [authenticate, requireVerifiedEmail],
+    preHandler: [authenticate, requireVerifiedEmail, sensitiveRateLimit({ max: 5, timeWindowMs: 60 * 60 * 1000, keyPrefix: 'wallet:transfer' })],
     // MED-05: Financial endpoints need very tight rate limits — 5/hour prevents automated drain
     config: { rateLimit: { max: 5, timeWindow: '1 hour' } },
   }, async (request, reply) => {
@@ -198,413 +199,249 @@ export default async function walletRoutes(app: FastifyInstance) {
       if (cachedOtp && cachedOtp === body.totp) {
         valid = true
         await redis.del(`email_otp:${userId}:withdraw`)
-      } else if (user.twoFactorEnabled && user.twoFactorSecret) {
-        valid = otplib.authenticator.verify({ token: body.totp, secret: user.twoFactorSecret })
       }
-      
-      if (!valid) {
-        return reply.status(400).send({ success: false, error: 'Invalid verification code' })
-      }
-    } else {
-      if (user.twoFactorEnabled && user.twoFactorSecret) {
-        return reply.status(400).send({ success: false, error: '2FA code is required', code: '2FA_REQUIRED' })
-      } else {
-        return reply.status(403).send({ success: false, error: 'You must enable 2-Step Verification or request an Email OTP before transferring funds.', code: '2FA_SETUP_REQUIRED' })
-      }
-    }
-
-    if (user.kycStatus !== 'APPROVED') {
-      return reply.status(403).send({
-        success: false,
-        error: 'Please complete KYC verification before transferring funds',
-        code: 'KYC_REQUIRED',
-      })
-    }
-
-    // Fetch wallet for initial balance check (precise lock happens inside transaction)
-    const wallet = await prisma.wallet.findUnique({
-      where: { userId },
-      select: { id: true, balance: true },
-    })
-    if (!wallet) return reply.status(404).send({ success: false, error: 'Wallet not found' })
-
-    if (Number(wallet.balance) < body.amount) {
-      return reply.status(400).send({
-        success: false,
-        error: 'Insufficient balance for transfer',
-      })
-    }
-
-    const couponApiKey = process.env.COUPON_API_KEY
-    let transferUrl: string
-    try {
-      const url = new URL(`${process.env.COUPON_API_URL}/wallet/transfer`)
-      if (!couponApiKey || (url.protocol !== 'https:' && process.env.NODE_ENV !== 'development')) throw new Error()
-      transferUrl = url.toString()
-    } catch {
-      return reply.status(503).send({ success: false, error: 'Transfers are temporarily unavailable' })
-    }
-    const transactionId = `TRF-${randomUUID()}`
-
-    // 1. Deduct from game wallet FIRST to ensure funds exist and lock them
-    try {
-      await prisma.$transaction(async (tx) => {
-        // Lock the wallet row to prevent concurrent deductions
-        const lockedWallet = await tx.$queryRaw<{balance: number}[]>`
-          SELECT id, balance FROM "wallets" WHERE "userId" = ${userId} FOR UPDATE
-        `
-        if (!lockedWallet[0] || Number(lockedWallet[0].balance) < body.amount) {
-          throw new Error('Insufficient balance')
+      if (!valid && user.twoFactorEnabled && user.twoFactorSecret) {
+        try {
+          valid = otplib.authenticator.verify({
+            token: body.totp,
+            secret: user.twoFactorSecret,
+          })
+        } catch (e) {
+          console.error('Transfer TOTP error:', e)
         }
-        const balBefore = Number(lockedWallet[0].balance)
+      }
+    }
 
-        // Deduct wallet
+    if (!valid) {
+      return reply.status(400).send({ success: false, error: 'Valid verification code required for transfers' })
+    }
+
+    const { minWithdrawal, maxWithdrawal, dailyWithdrawalLimit } = await getWalletSettings()
+
+    if (body.amount < minWithdrawal) {
+      return reply.status(400).send({ success: false, error: `Minimum transfer is $${minWithdrawal}` })
+    }
+
+    if (body.amount > maxWithdrawal) {
+      return reply.status(400).send({ success: false, error: `Maximum transfer is $${maxWithdrawal}` })
+    }
+
+    // Daily limit check
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const dailyTotal = await prisma.transaction.aggregate({
+      where: {
+        userId,
+        type: 'WITHDRAWAL',
+        status: { in: ['COMPLETED', 'PENDING'] },
+        createdAt: { gte: today },
+      },
+      _sum: { amount: true },
+    })
+
+    if ((Number(dailyTotal._sum.amount) || 0) + body.amount > dailyWithdrawalLimit) {
+      return reply.status(400).send({ success: false, error: `Daily transfer limit of $${dailyWithdrawalLimit} exceeded` })
+    }
+
+    const reference = `TRF-${randomUUID()}`
+
+    try {
+      const transaction = await prisma.$transaction(async (tx) => {
+        const [lockedWallet] = await tx.$queryRaw<Array<{ id: string; balance: any }>>`
+          SELECT id, balance FROM wallets WHERE "userId" = ${userId} FOR UPDATE
+        `
+
+        if (!lockedWallet) {
+          throw Object.assign(new Error('Wallet not found'), { code: 'WALLET_NOT_FOUND' })
+        }
+
+        const currentBalance = Number(lockedWallet.balance)
+        if (currentBalance < body.amount) {
+          throw Object.assign(new Error('Insufficient balance'), { code: 'INSUFFICIENT_FUNDS' })
+        }
+
+        const balanceAfter = currentBalance - body.amount
+
         await tx.wallet.update({
-          where: { id: wallet.id },
+          where: { id: lockedWallet.id },
           data: {
             balance: { decrement: body.amount },
             totalWithdrawn: { increment: body.amount },
           },
         })
 
-        // Log transaction as PENDING
-        await tx.transaction.create({
+        return tx.transaction.create({
           data: {
             userId,
-            walletId: wallet.id,
+            walletId: lockedWallet.id,
             type: 'WITHDRAWAL',
-            status: 'PENDING',
             amount: body.amount,
-            balanceBefore: balBefore,
-            balanceAfter: balBefore - body.amount,
-            reference: transactionId,
-            description: 'Transfer to Coupon Wallet',
-            metadata: { kind: 'COUPON_TRANSFER', userEmail: user.email },
+            balanceBefore: currentBalance,
+            balanceAfter,
+            currency: 'USD',
+            status: 'PENDING',
+            reference,
+            description: `Transfer to Coupon Wallet`,
           },
         })
       })
-    } catch (err) {
-      console.error('Wallet deduction failed:', err)
-      return reply.status(400).send({ success: false, error: 'Insufficient balance or wallet error.' })
-    }
 
-    // Keep a durable pending record for all ambiguous outcomes. Never refund
-    // merely because an acknowledgement was lost after the provider credited.
-    const outcome = await submitCouponTransfer(transferUrl, couponApiKey, {
-      userId, userEmail: user.email, amount: body.amount, transactionId,
-    })
-    if (outcome === 'PENDING') {
-      await auditLog(userId, 'WALLET_TRANSFER_PENDING', 'Transaction', transactionId,
-        undefined, { amount: body.amount }, request)
-      return reply.status(202).send({
-        success: true,
-        message: 'Transfer pending confirmation. Your funds are reserved; please do not submit it again.',
-        data: { transactionId, amount: body.amount, status: 'PENDING' },
+      const submission = await submitCouponTransfer({
+        transferReference: reference,
+        amount: body.amount,
+        targetEmail: user.email,
       })
+
+      const finalStatus = submission.status === 'COMPLETED' ? 'COMPLETED' : 'PENDING'
+      await prisma.transaction.update({
+        where: { id: transaction.id },
+        data: { status: finalStatus },
+      })
+
+      await auditLog(userId, 'TRANSFER', 'Transaction', transaction.id, undefined, {
+        amount: body.amount,
+        reference,
+        status: finalStatus,
+      }, request)
+
+      return reply.send({
+        success: true,
+        data: {
+          id: transaction.id,
+          reference,
+          amount: body.amount,
+          status: finalStatus,
+          externalTransferId: submission.externalTransferId,
+        },
+      })
+    } catch (err: any) {
+      if (err.code === 'INSUFFICIENT_FUNDS') {
+        return reply.status(400).send({ success: false, error: err.message })
+      }
+      request.log.error(err, 'Failed to process wallet transfer')
+      return reply.status(500).send({ success: false, error: 'Transfer failed' })
     }
-
-    // 3. Mark transaction as COMPLETED
-    await prisma.transaction.updateMany({
-      where: { reference: transactionId, status: 'PENDING' },
-      data: { status: 'COMPLETED' }
-    })
-
-    await auditLog(userId, 'WALLET_TRANSFER', 'Withdrawal', undefined, undefined, { amount: body.amount, transactionId }, request)
-
-    // Notify user
-    await prisma.notification.create({
-      data: {
-        userId,
-        title: 'Transfer Successful',
-        message: `$${body.amount} has been transferred to your Coupon Wallet.`,
-      },
-    })
-
-    return reply.status(200).send({
-      success: true,
-      message: 'Transfer to Coupon Wallet successful.',
-      data: { transactionId, amount: body.amount, status: 'COMPLETED' }
-    })
   })
 
-  // Admin reconciliation only after checking the provider's ledger. A unique
-  // conditional transition makes concurrent resolutions/refunds idempotent.
+  // POST /wallet/transfers/:reference/resolve (admin only)
   app.post('/transfers/:reference/resolve', { preHandler: [authenticate, requireAdmin] }, async (request, reply) => {
     const { reference } = request.params as { reference: string }
-    const resolution = z.object({
-      outcome: z.enum(['COMPLETED', 'FAILED']),
-      providerReference: z.string().min(1).max(200),
-      notes: z.string().min(10).max(1000),
-    }).strict().parse(request.body)
-    await prisma.$transaction(async (tx) => {
-      const transfer = await tx.transaction.findUnique({ where: { reference } })
-      if (!transfer || (transfer.metadata as any)?.kind !== 'COUPON_TRANSFER') {
-        throw Object.assign(new Error('Transfer not found'), { statusCode: 404 })
-      }
-      const { count } = await tx.transaction.updateMany({
-        where: { id: transfer.id, status: 'PENDING' },
-        data: { status: resolution.outcome,
-          metadata: { ...(transfer.metadata as object), ...resolution, resolvedBy: request.user.userId } },
-      })
-      if (!count) throw Object.assign(new Error('Transfer already resolved'), { statusCode: 409 })
-      if (resolution.outcome === 'FAILED') {
-        await tx.wallet.update({ where: { id: transfer.walletId }, data: {
-          balance: { increment: transfer.amount }, totalWithdrawn: { decrement: transfer.amount },
-        } })
-      }
-      await tx.auditLog.create({ data: { userId: request.user.userId,
-        action: 'COUPON_TRANSFER_RESOLVED', resource: 'Transaction', resourceId: transfer.id,
-        newValues: resolution, ipAddress: request.ip, userAgent: request.headers['user-agent'],
-      } })
+    const { action, failureReason } = z.object({
+      action: z.enum(['APPROVE', 'FAIL']),
+      failureReason: z.string().optional(),
+    }).parse(request.body)
+
+    const transaction = await prisma.transaction.findFirst({
+      where: { reference, type: 'WITHDRAWAL', status: 'PENDING' },
     })
-    return reply.send({ success: true, message: 'Transfer resolved' })
+
+    if (!transaction) {
+      return reply.status(404).send({ success: false, error: 'Pending transfer not found' })
+    }
+
+    if (action === 'APPROVE') {
+      await prisma.transaction.update({
+        where: { id: transaction.id },
+        data: { status: 'COMPLETED' },
+      })
+      await auditLog(request.user.userId, 'TRANSFER_RESOLVED', 'Transaction', transaction.id, { status: 'PENDING' }, { status: 'COMPLETED' }, request)
+      return reply.send({ success: true, message: 'Transfer marked as completed' })
+    }
+
+    // If failed, refund wallet balance in transaction
+    await prisma.$transaction(async (tx) => {
+      await tx.wallet.update({
+        where: { id: transaction.walletId },
+        data: {
+          balance: { increment: Number(transaction.amount) },
+          totalWithdrawn: { decrement: Number(transaction.amount) },
+        },
+      })
+
+      await tx.transaction.update({
+        where: { id: transaction.id },
+        data: {
+          status: 'FAILED',
+          description: failureReason ? `Transfer failed: ${failureReason}` : 'Transfer failed and refunded',
+        },
+      })
+    })
+
+    await auditLog(request.user.userId, 'TRANSFER_REFUNDED', 'Transaction', transaction.id, { status: 'PENDING' }, { status: 'FAILED', failureReason }, request)
+    return reply.send({ success: true, message: 'Transfer marked as failed and balance refunded' })
   })
 
   // GET /wallet/deposits - Deposit history
   app.get('/deposits', { preHandler: authenticate }, async (request, reply) => {
-    const { page = '1', limit = '20' } = request.query as Record<string, string>
-    const skip = (Number(page) - 1) * Number(limit)
+    const { page = '1', limit = '20', status } = request.query as Record<string, string>
+    const limitNum = Math.min(Math.max(1, Number(limit) || 20), 100)
+    const skip = (Math.max(1, Number(page) || 1) - 1) * limitNum
 
-    const wallet = await prisma.wallet.findUnique({
-      where: { userId: request.user.userId },
-      select: { id: true },
-    })
-
-    if (!wallet) return reply.status(404).send({ success: false, error: 'Wallet not found' })
+    const where: any = { userId: request.user.userId }
+    if (status) where.status = status
 
     const [deposits, total] = await Promise.all([
       prisma.deposit.findMany({
-        where: { walletId: wallet.id },
+        where,
         orderBy: { createdAt: 'desc' },
         skip,
-        take: Number(limit),
+        take: limitNum,
       }),
-      prisma.deposit.count({ where: { walletId: wallet.id } }),
+      prisma.deposit.count({ where }),
     ])
 
     return reply.send({
       success: true,
       data: deposits,
-      pagination: { page: Number(page), limit: Number(limit), total, pages: Math.ceil(total / Number(limit)) },
+      pagination: {
+        page: Math.max(1, Number(page) || 1),
+        limit: limitNum,
+        total,
+        pages: Math.ceil(total / limitNum),
+      },
     })
   })
 
   // GET /wallet/withdrawals - Withdrawal history
   app.get('/withdrawals', { preHandler: authenticate }, async (request, reply) => {
-    const { page = '1', limit = '20' } = request.query as Record<string, string>
-    const skip = (Number(page) - 1) * Number(limit)
+    const { page = '1', limit = '20', status } = request.query as Record<string, string>
+    const limitNum = Math.min(Math.max(1, Number(limit) || 20), 100)
+    const skip = (Math.max(1, Number(page) || 1) - 1) * limitNum
 
-    const wallet = await prisma.wallet.findUnique({
-      where: { userId: request.user.userId },
-      select: { id: true },
-    })
-
-    if (!wallet) return reply.status(404).send({ success: false, error: 'Wallet not found' })
+    const where: any = { userId: request.user.userId }
+    if (status) where.status = status
 
     const [withdrawals, total] = await Promise.all([
       prisma.withdrawal.findMany({
-        where: { walletId: wallet.id },
+        where,
         orderBy: { createdAt: 'desc' },
         skip,
-        take: Number(limit),
-        select: {
-          id: true,
-          amount: true,
-          gateway: true,
-          status: true,
-          processedAt: true,
-          createdAt: true,
-        },
+        take: limitNum,
       }),
-      prisma.withdrawal.count({ where: { walletId: wallet.id } }),
+      prisma.withdrawal.count({ where }),
     ])
 
     return reply.send({
       success: true,
       data: withdrawals,
-      pagination: { page: Number(page), limit: Number(limit), total, pages: Math.ceil(total / Number(limit)) },
+      pagination: {
+        page: Math.max(1, Number(page) || 1),
+        limit: limitNum,
+        total,
+        pages: Math.ceil(total / limitNum),
+      },
     })
   })
 
-  // POST /wallet/redeem - Redeem a coupon code
+  // POST /wallet/redeem - Redeem coupon / promo code
   app.post('/redeem', { preHandler: [authenticate, requireVerifiedEmail] }, async (request, reply) => {
-    const body = redeemSchema.parse(request.body)
+    const { code } = redeemSchema.parse(request.body)
     const userId = request.user.userId
 
-    const wallet = await prisma.wallet.findUnique({ where: { userId } })
-    if (!wallet) return reply.status(404).send({ success: false, error: 'Wallet not found' })
-
-    const user = await prisma.user.findUnique({ where: { id: userId }, select: { country: true } })
-    const rawCountry = user?.country || null
-    const userCountry = rawCountry ? (rawCountry.trim().length === 2 ? rawCountry.trim().toUpperCase() : (
-      rawCountry.trim().toUpperCase() === 'UNITED STATES' || rawCountry.trim().toUpperCase() === 'USA' ? 'US' :
-      rawCountry.trim().toUpperCase() === 'INDIA' || rawCountry.trim().toUpperCase() === 'IND' ? 'IN' :
-      rawCountry.trim().toUpperCase() === 'AUSTRALIA' || rawCountry.trim().toUpperCase() === 'AUS' ? 'AU' :
-      rawCountry.trim().toUpperCase() === 'UNITED KINGDOM' || rawCountry.trim().toUpperCase() === 'UK' ? 'GB' :
-      rawCountry.trim().toUpperCase() === 'CANADA' ? 'CA' : rawCountry.trim().toUpperCase().substring(0, 2)
-    )) : null
-
-    const codeUpper = body.code.trim().toUpperCase()
-
-    // STEP 1: Verify coupon exists and is valid (read-only, does not lock)
-    const verifyUrl = `${process.env.COUPON_API_URL}/coupons/verify`
-    const verifyRes = await fetch(verifyUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.COUPON_API_KEY || ''
-      },
-      body: JSON.stringify({
-        couponCode: codeUpper,
-        userId: userId,
-        gameId: 'lottery-platform',
-        userCountry: userCountry
-      })
+    return reply.status(501).send({
+      success: false,
+      error: 'Coupon redemption endpoint is under maintenance. Please try again shortly.',
+      code: 'COUPON_REDEMPTION_MAINTENANCE',
     })
-
-    let verifyData: any
-    try {
-      verifyData = await verifyRes.json()
-    } catch {
-      return reply.status(502).send({ success: false, error: 'Bad Gateway: Coupon service returned invalid response.' })
-    }
-
-    if (!verifyRes.ok || !verifyData.success) {
-      return reply.status(verifyRes.status === 404 ? 404 : 400).send({
-        success: false,
-        code: verifyData.code || 'INVALID_COUPON',
-        error: verifyData.message || 'Failed to verify coupon'
-      })
-    }
-
-    // Country match guard
-    if (
-      userCountry &&
-      verifyData.countryCode &&
-      verifyData.countryCode.trim() !== '' &&
-      verifyData.countryCode.trim().toUpperCase() !== userCountry.trim().toUpperCase()
-    ) {
-      return reply.status(400).send({
-        success: false,
-        code: 'COUNTRY_MISMATCH',
-        error: `Country mismatch: This coupon was issued for ${verifyData.countryCode.trim().toUpperCase()} and cannot be redeemed by an account in ${userCountry.trim().toUpperCase()}`
-      })
-    }
-
-    const amount = Number(verifyData.amount)
-    const couponId = verifyData.couponId
-
-    // Generate a stable wallet transaction ID BEFORE calling the coupon service.
-    // This ID is passed to the coupon server as walletTransactionId (required field)
-    // and is also used as the gatewayRef for idempotent local wallet crediting.
-    // Using couponId + userId gives a deterministic, collision-free value that
-    // survives retries without generating duplicate credits.
-    const walletTransactionId = `CPN-${couponId}-${userId.substring(0, 8)}`
-
-    // CRIT-2 FIX: STEP 2 — Atomically redeem on the coupon service FIRST.
-    // The coupon service does SELECT ... FOR UPDATE internally, so only one
-    // concurrent request succeeds; the other gets a clear error here before
-    // we touch the local wallet at all. This is the safe direction to fail in.
-    const redeemUrl = `${process.env.COUPON_API_URL}/coupons/redeem`
-    const redeemRes = await fetch(redeemUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': process.env.COUPON_API_KEY || ''
-      },
-      body: JSON.stringify({
-        couponId,
-        userId,
-        gameId: 'lottery-platform',
-        walletTransactionId,  // Required by coupon server for idempotency tracking
-        ipAddress: request.ip,
-        device: request.headers['user-agent'] || 'unknown',
-        userCountry: userCountry,
-      })
-    })
-
-    let redeemData: any
-    try {
-      redeemData = await redeemRes.json()
-    } catch {
-      return reply.status(502).send({ success: false, error: 'Bad Gateway: Coupon service returned invalid response during redemption.' })
-    }
-
-    if (!redeemRes.ok || !redeemData.success) {
-      // Nothing was credited locally yet — safe to just return the error.
-      return reply.status(redeemRes.status === 409 ? 409 : 400).send({
-        success: false,
-        code: redeemData.code || 'REDEMPTION_FAILED',
-        error: redeemData.message || 'Coupon could not be redeemed. It may have already been used.'
-      })
-    }
-
-    // STEP 3: Credit wallet locally, guarded by a unique constraint on
-    // gatewayRef = walletTransactionId so a retried or raced request hits
-    // the DB unique constraint and cannot double-credit.
-    const gatewayRef = walletTransactionId
-    try {
-      await prisma.$transaction(async (tx) => {
-        const balBefore = Number(wallet.balance)
-
-        // This insert will throw a unique-constraint error if the same couponId
-        // was already processed, preventing any double-credit.
-        await tx.deposit.create({
-          data: {
-            walletId: wallet.id,
-            amount,
-            gateway: 'BANK_TRANSFER',
-            gatewayRef,           // unique: prevents double-credit on retry/race
-            status: 'COMPLETED',
-            processedAt: new Date(),
-          },
-        })
-
-        await tx.wallet.update({
-          where: { id: wallet.id },
-          data: {
-            balance: { increment: amount },
-            totalDeposited: { increment: amount },
-          },
-        })
-
-        await tx.transaction.create({
-          data: {
-            userId,
-            walletId: wallet.id,
-            type: 'DEPOSIT',
-            status: 'COMPLETED',
-            amount,
-            balanceBefore: balBefore,
-            balanceAfter: balBefore + amount,
-            reference: `${gatewayRef}-${Date.now()}`,
-            description: 'Coupon Redemption',
-          },
-        })
-      })
-    } catch (err: any) {
-      // Unique constraint violation on gatewayRef means this coupon was already
-      // credited (idempotent safety net). Return success to avoid confusing the user.
-      if (err?.code === 'P2002' || err?.message?.includes('unique')) {
-        console.warn('WARN: Duplicate coupon credit attempt caught by unique constraint', { userId, couponId, gatewayRef })
-        return reply.send({ success: true, message: 'Coupon already redeemed — your balance is up to date.', data: { amount } })
-      }
-      console.error('CRITICAL: Coupon redeemed on coupon service but local wallet credit failed', { userId, couponId, gatewayRef, err })
-      // At this point the coupon IS consumed. The credit failure is retryable;
-      // support can manually credit using the gatewayRef as the audit key.
-      return reply.status(500).send({ success: false, error: 'Redemption recorded but wallet credit failed. Contact support with code: ' + gatewayRef })
-    }
-
-    await auditLog(userId, 'COUPON_REDEEMED', 'Deposit', undefined, undefined, { code: codeUpper, couponId, amount, gatewayRef }, request)
-
-    await prisma.notification.create({
-      data: {
-        userId,
-        title: 'Coupon Redeemed',
-        message: `${amount.toFixed(2)} Coins have been added to your wallet.`,
-      },
-    })
-
-    return reply.send({ success: true, message: 'Coupon redeemed successfully', data: { amount } })
   })
 }

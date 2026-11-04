@@ -123,7 +123,7 @@ export async function sendEmail({ to, subject, template, data }: EmailOptions): 
   const defaultFrom = process.env.RESEND_API_KEY ? 'onboarding@resend.dev' : 'noreply@luckylottoplay.live'
   const from = (process.env.FROM_EMAIL || defaultFrom).replace(/^MegaDraw\s*</i, 'Lucky Lotto Play <')
 
-  // Mock delivery is available in development or when ALLOW_MOCK_EMAIL=true.
+  // Mock delivery is available in development or when explicitly enabled with ALLOW_MOCK_EMAIL=true.
   if (!process.env.RESEND_API_KEY && !process.env.SMTP_USER) {
     if (process.env.NODE_ENV !== 'development' && process.env.ALLOW_MOCK_EMAIL !== 'true') {
       throw new Error('Email delivery is not configured')
@@ -131,9 +131,14 @@ export async function sendEmail({ to, subject, template, data }: EmailOptions): 
     console.log('\n======================================================')
     console.log(`✉️ MOCK EMAIL SENT TO: ${to}`)
     console.log(`Subject: ${subject}`)
-    if (data.code) console.log(`🔑 OTP CODE: ${data.code}`)
-    if (data.verifyUrl) console.log(`👉 VERIFICATION LINK: ${data.verifyUrl}`)
-    if (data.resetUrl) console.log(`👉 RESET LINK: ${data.resetUrl}`)
+    // CRIT-SEC: In production, never log plaintext OTP codes or reset tokens into server logs
+    if (process.env.NODE_ENV === 'production') {
+      console.log('🔒 Sensitive auth payload redacted in production logs')
+    } else {
+      if (data.code) console.log(`🔑 OTP CODE: ${data.code}`)
+      if (data.verifyUrl) console.log(`👉 VERIFICATION LINK: ${data.verifyUrl}`)
+      if (data.resetUrl) console.log(`👉 RESET LINK: ${data.resetUrl}`)
+    }
     console.log('======================================================\n')
     return
   }

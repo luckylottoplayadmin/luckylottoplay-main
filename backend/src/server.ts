@@ -112,7 +112,8 @@ async function buildApp() {
       if (!origin || allowedOrigins.includes(origin)) {
         cb(null, true)
       } else {
-        cb(new Error('Not allowed by CORS'), false)
+        // Disallow origin cleanly without triggering uncaught 500 error
+        cb(null, false)
       }
     },
     credentials: true,

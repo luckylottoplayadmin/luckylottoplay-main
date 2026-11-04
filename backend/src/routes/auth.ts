@@ -15,6 +15,7 @@ import { authenticate, auditLog } from '../middleware/auth'
 import { sendEmail } from '../services/email'
 import { processAffiliateCommission } from '../services/affiliate'
 import { generateQR } from '../utils/qr'
+import { sensitiveRateLimit } from '../middleware/sensitiveRateLimit'
 
 // ── Security helpers ──────────────────────────────────────────────────────────
 
@@ -90,6 +91,7 @@ export default async function authRoutes(app: FastifyInstance) {
 
   // POST /auth/register
   app.post('/register', {
+    preHandler: [sensitiveRateLimit({ max: 50, timeWindowMs: 15 * 60 * 1000, keyPrefix: 'auth:reg' })],
     config: { rateLimit: devLimit(50, '15 minutes') },
   }, async (request, reply) => {
     const body = registerSchema.parse(request.body)
@@ -160,7 +162,9 @@ export default async function authRoutes(app: FastifyInstance) {
   })
 
   // POST /auth/resend-verification
-  app.post('/resend-verification', async (request, reply) => {
+  app.post('/resend-verification', {
+    preHandler: [sensitiveRateLimit({ max: 3, timeWindowMs: 5 * 60 * 1000, keyPrefix: 'auth:resend' })],
+  }, async (request, reply) => {
     const { email } = forgotPasswordSchema.parse(request.body)
     const user = await prisma.user.findUnique({ where: { email } })
     
@@ -206,6 +210,8 @@ export default async function authRoutes(app: FastifyInstance) {
 
   // POST /auth/login
   app.post('/login', {
+    // In-memory sliding window fallback guarantees protection during Redis outages
+    preHandler: [sensitiveRateLimit({ max: 5, timeWindowMs: 15 * 60 * 1000, keyPrefix: 'auth:login' })],
     // H-5: Tightened from 10 → 5 attempts per 15 min to reduce credential stuffing window
     config: { rateLimit: devLimit(5, '15 minutes') },
   }, async (request, reply) => {
@@ -363,6 +369,7 @@ export default async function authRoutes(app: FastifyInstance) {
 
   // POST /auth/request-email-otp
   app.post('/request-email-otp', {
+    preHandler: [sensitiveRateLimit({ max: 3, timeWindowMs: 5 * 60 * 1000, keyPrefix: 'auth:req-otp' })],
     config: { rateLimit: devLimit(3, '5 minutes') },
   }, async (request, reply) => {
     const body = loginSchema.parse(request.body)
@@ -458,7 +465,9 @@ export default async function authRoutes(app: FastifyInstance) {
   })
 
   // POST /auth/verify-email
-  app.post('/verify-email', async (request, reply) => {
+  app.post('/verify-email', {
+    preHandler: [sensitiveRateLimit({ max: 10, timeWindowMs: 5 * 60 * 1000, keyPrefix: 'auth:verify' })],
+  }, async (request, reply) => {
     const { email, token } = verifyEmailSchema.parse(request.body)
 
     // MED-06: Brute-force protection — max 5 attempts per email per 10 minutes
@@ -560,6 +569,7 @@ export default async function authRoutes(app: FastifyInstance) {
 
   // POST /auth/forgot-password
   app.post('/forgot-password', {
+    preHandler: [sensitiveRateLimit({ max: 3, timeWindowMs: 15 * 60 * 1000, keyPrefix: 'auth:forgot' })],
     config: { rateLimit: devLimit(3, '15 minutes') },
   }, async (request, reply) => {
     const { email } = forgotPasswordSchema.parse(request.body)
