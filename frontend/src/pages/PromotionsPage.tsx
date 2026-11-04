@@ -38,7 +38,7 @@ export default function PromotionsPage() {
     {
       id: 2,
       title: <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>Refer a Friend, Get <GoldCoin size={20} /> 20</span>,
-      desc: <>Invite your friends to MegaDraw. When they make their first deposit, you both get <GoldCoin size={15} style={{ display: 'inline-block', verticalAlign: '-2px', margin: '0 2px' }} />20 bonus credit.</>,
+      desc: <>Invite your friends to Lucky Lotto Play. When they make their first deposit, you both get <GoldCoin size={15} style={{ display: 'inline-block', verticalAlign: '-2px', margin: '0 2px' }} />20 bonus credit.</>,
       icon: <Zap size={32} style={{ color: 'var(--color-primary)' }} />,
       cta: copied ? 'Link Copied!' : 'Get Referral Link',
       action: handleCopyReferral,

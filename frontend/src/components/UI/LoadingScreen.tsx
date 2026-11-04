@@ -5,7 +5,7 @@ interface LoadingScreenProps {
   message?: string
 }
 
-export default function LoadingScreen({ message = 'Loading MegaDraw Platform...' }: LoadingScreenProps) {
+export default function LoadingScreen({ message = 'Loading Lucky Lotto Play Platform...' }: LoadingScreenProps) {
   return (
     <div
       style={{
@@ -53,7 +53,7 @@ export default function LoadingScreen({ message = 'Loading MegaDraw Platform...'
 
       <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
         <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '24px', color: 'var(--text-primary)', margin: 0, letterSpacing: '-0.02em' }}>
-          MegaDraw
+          Lucky Lotto Play
         </h3>
         <p style={{ fontSize: '14px', color: 'var(--text-muted)', margin: 0, fontWeight: 500 }}>
           {message}

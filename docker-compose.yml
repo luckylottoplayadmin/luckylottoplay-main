@@ -61,7 +61,7 @@ services:
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER}
       SMTP_PASS: ${SMTP_PASS}
-      FROM_EMAIL: ${FROM_EMAIL:-noreply@ozlotto.com}
+      FROM_EMAIL: ${FROM_EMAIL:-noreply@luckylottoplay.live}
       FRONTEND_URL: ${FRONTEND_URL:-https://localhost}
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET}

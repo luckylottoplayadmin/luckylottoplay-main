@@ -149,7 +149,7 @@ export default async function walletRoutes(app: FastifyInstance) {
       const { sendEmail } = require('../services/email')
       await sendEmail({
         to: user.email,
-        subject: 'MegaDraw Wallet Verification Code',
+        subject: 'Lucky Lotto Play Wallet Verification Code',
         template: 'email-otp',
         data: { name: user.firstName, action: 'wallet transfer or withdrawal', code },
       })

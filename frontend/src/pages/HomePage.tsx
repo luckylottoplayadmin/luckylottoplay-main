@@ -34,7 +34,7 @@ export default function HomePage() {
   }, {}) || {}
 
   if (isLoadingGames) {
-    return <LoadingScreen message="Loading MegaDraw Platform..." />
+    return <LoadingScreen message="Loading Lucky Lotto Play..." />
   }
 
   const featuredGames = gamesData?.filter((g: any) => g.isFeatured).slice(0, 3) || []
@@ -151,7 +151,7 @@ export default function HomePage() {
           )}
 
           <div style={{ textAlign: 'center', marginTop: '60px', marginBottom: '20px' }}>
-            <h2 style={{ fontSize: '24px', fontWeight: 800, color: 'var(--text-primary)' }}>MegaDraw is World's favourite way to play lotto online</h2>
+            <h2 style={{ fontSize: '24px', fontWeight: 800, color: 'var(--text-primary)' }}>Lucky Lotto Play is your way to play lotto online</h2>
           </div>
         </div>
       </section>
@@ -192,7 +192,7 @@ export default function HomePage() {
       <section className="section-sm" style={{ background: 'var(--bg-secondary)' }}>
         <div className="container">
           <div style={{ textAlign: 'center', marginBottom: '40px' }}>
-            <h2 className="section-title">Why MegaDraw?</h2>
+            <h2 className="section-title">Why Lucky Lotto Play?</h2>
             <div className="section-subtitle">Trusted by globals for safe and fair online lottery</div>
           </div>
           <div className="grid-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', justifyContent: 'center' }}>

@@ -23,6 +23,6 @@
   <circle cx="256" cy="256" r="185" fill="none" stroke="url(#gold)" stroke-width="20" opacity="0.4"/>
   <circle cx="256" cy="256" r="145" fill="url(#gold)" filter="url(#glow)"/>
   <circle cx="256" cy="170" r="120" fill="url(#shine)" opacity="0.3"/>
-  <text x="256" y="302" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-weight="900" font-size="145" fill="#0B132B" text-anchor="middle" letter-spacing="-4">M</text>
+  <text x="256" y="302" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-weight="900" font-size="145" fill="#0B132B" text-anchor="middle" letter-spacing="-4">L</text>
   <path d="M 370 135 L 385 170 L 420 185 L 385 200 L 370 235 L 355 200 L 320 185 L 355 170 Z" fill="#FFFFFF" opacity="0.95"/>
 </svg>

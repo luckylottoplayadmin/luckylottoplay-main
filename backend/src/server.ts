@@ -1,5 +1,5 @@
 /**
- * MegaDraw Platform - Fastify Backend Server
+ * Lucky Lotto Play Platform - Fastify Backend Server
  * Production-ready lottery platform API
  */
 
@@ -104,7 +104,7 @@ async function buildApp() {
 
   // CRIT-06: Strict CORS — never reflect all origins in production
   const allowedOrigins = process.env.NODE_ENV === 'production'
-    ? (process.env.ALLOWED_ORIGINS || 'https://megadraw.com,https://lottery-frontend-xpxd.onrender.com').split(',')
+    ? (process.env.ALLOWED_ORIGINS || 'https://luckylottoplay.live,https://www.luckylottoplay.live,https://lottery-frontend-x3id.onrender.com').split(',')
     : ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000']
 
   await app.register(cors, {
@@ -148,7 +148,7 @@ async function buildApp() {
   await app.register(swagger, {
     openapi: {
       info: {
-        title: 'MegaDraw API',
+        title: 'Lucky Lotto Play API',
         description: 'Production-ready global Lottery Platform API',
         version: '1.0.0',
       },
@@ -305,7 +305,7 @@ function checkSecretStrength() {
 // H-2: Refuse to start in production if ALLOWED_ORIGINS is misconfigured or wildcard
 function checkCORSOrigins() {
   if (process.env.NODE_ENV === 'production') {
-    const origins = process.env.ALLOWED_ORIGINS || 'https://megadraw.com,https://lottery-frontend-xpxd.onrender.com'
+    const origins = process.env.ALLOWED_ORIGINS || 'https://luckylottoplay.live,https://www.luckylottoplay.live,https://lottery-frontend-x3id.onrender.com'
     if (!origins || origins.trim() === '' || origins.includes('*')) {
       console.error('[FATAL] Refusing to start in production with weak, missing, or wildcard ALLOWED_ORIGINS.')
       process.exit(1)

@@ -20,7 +20,7 @@ export function FAQPage() {
       <div className="container" style={{ maxWidth: '800px' }}>
         <div style={{ textAlign: 'center', marginBottom: '40px' }}>
           <h1 className="section-title">Frequently Asked Questions</h1>
-          <div className="section-subtitle">Find answers to common questions about playing on MegaDraw</div>
+          <div className="section-subtitle">Find answers to common questions about playing on Lucky Lotto Play</div>
           <div className="input-wrapper has-icon-left" style={{ maxWidth: '400px', margin: '24px auto 0' }}>
             <span className="input-icon"><Search size={16} /></span>
             <input type="text" className="form-input" placeholder="Search FAQs..." value={search} onChange={(e) => setSearch(e.target.value)} />
@@ -88,13 +88,13 @@ export function ContactPage() {
             <Phone size={32} style={{ color: 'var(--color-primary)', margin: '0 auto 16px' }} />
             <h3 style={{ fontWeight: 700, marginBottom: '8px' }}>Phone Support</h3>
             <p style={{ color: 'var(--text-secondary)', marginBottom: '16px', fontSize: '14px' }}>Available 8am-8pm AEST</p>
-            <a href="tel:1800695686" style={{ fontWeight: 800, fontSize: '18px', color: 'var(--text-primary)' }}>1800 MegaDraw</a>
+            <a href="/contact" style={{ fontWeight: 800, fontSize: '18px', color: 'var(--text-primary)' }}>Contact support</a>
           </div>
           <div className="card card-body" style={{ textAlign: 'center' }}>
             <Mail size={32} style={{ color: 'var(--color-primary)', margin: '0 auto 16px' }} />
             <h3 style={{ fontWeight: 700, marginBottom: '8px' }}>Email</h3>
             <p style={{ color: 'var(--text-secondary)', marginBottom: '16px', fontSize: '14px' }}>We reply within 24 hours</p>
-            <a href="mailto:support@MegaDraw.com" style={{ fontWeight: 800, fontSize: '16px', color: 'var(--text-primary)' }}>support@MegaDraw.com</a>
+            <a href="mailto:support@luckylottoplay.live" style={{ fontWeight: 800, fontSize: '16px', color: 'var(--text-primary)' }}>support@luckylottoplay.live</a>
           </div>
           <div className="card card-body" style={{ textAlign: 'center' }}>
             <MessageSquare size={32} style={{ color: 'var(--color-primary)', margin: '0 auto 16px' }} />

@@ -1,3 +1,4 @@
+import BrandLogo from '@/components/common/BrandLogo'
 import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
@@ -88,8 +89,8 @@ export default function Header() {
             </button>
 
             {/* Logo */}
-            <Link to="/" className="logo" aria-label="MegaDraw Homepage">
-              <img src="/logo.png" alt="MegaDraw Logo" width="160" height="40" style={{ height: '40px', width: 'auto' }} />
+            <Link to="/" className="logo" aria-label="Lucky Lotto Play Homepage">
+              <BrandLogo />
             </Link>
           </div>
 

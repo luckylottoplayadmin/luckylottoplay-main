@@ -420,10 +420,10 @@ async function main() {
 
   // ── Settings ────────────────────────────────────────────────────────────────
   const settings = [
-    { key: 'site_name', value: 'MegaDraw', group: 'GENERAL', label: 'Site Name', isPublic: true },
+    { key: 'site_name', value: 'Lucky Lotto Play', group: 'GENERAL', label: 'Site Name', isPublic: true },
     { key: 'site_tagline', value: 'The world\'s Online Lottery Platform', group: 'GENERAL', label: 'Tagline', isPublic: true },
-    { key: 'contact_email', value: 'support@MegaDraw.com', group: 'GENERAL', label: 'Contact Email', isPublic: true },
-    { key: 'contact_phone', value: '1800 MegaDraw', group: 'GENERAL', label: 'Contact Phone', isPublic: true },
+    { key: 'contact_email', value: 'support@luckylottoplay.live', group: 'GENERAL', label: 'Contact Email', isPublic: true },
+    { key: 'contact_phone', value: '', group: 'GENERAL', label: 'Contact Phone', isPublic: true },
     { key: 'min_deposit', value: '10', group: 'PAYMENTS', label: 'Minimum Deposit (USD)', isPublic: true },
     { key: 'max_deposit', value: '10000', group: 'PAYMENTS', label: 'Maximum Deposit (USD)', isPublic: true },
     { key: 'min_withdrawal', value: '20', group: 'PAYMENTS', label: 'Minimum Withdrawal (USD)', isPublic: true },
@@ -511,30 +511,30 @@ async function main() {
     {
       slug: 'terms-and-conditions',
       title: 'Terms and Conditions',
-      content: '# Terms and Conditions\n\nLast updated: July 2025\n\n## 1. Acceptance of Terms\n\nBy using MegaDraw, you agree to these terms...\n\n## 2. Eligibility\n\nYou must be 18 years or older and located in an eligible jurisdiction.\n\n## 3. Account Responsibilities\n\nYou are responsible for maintaining the security of your account.\n\n## 4. Responsible Gaming\n\nWe are committed to responsible gambling practices.',
-      metaTitle: 'Terms and Conditions | MegaDraw',
-      metaDesc: 'Read MegaDraw\'s terms and conditions for using our online lottery platform.',
+      content: '# Terms and Conditions\n\nLast updated: July 2025\n\n## 1. Acceptance of Terms\n\nBy using Lucky Lotto Play, you agree to these terms...\n\n## 2. Eligibility\n\nYou must be 18 years or older and located in an eligible jurisdiction.\n\n## 3. Account Responsibilities\n\nYou are responsible for maintaining the security of your account.\n\n## 4. Responsible Gaming\n\nWe are committed to responsible gambling practices.',
+      metaTitle: 'Terms and Conditions | Lucky Lotto Play',
+      metaDesc: 'Read Lucky Lotto Play\'s terms and conditions for using our online lottery platform.',
     },
     {
       slug: 'privacy-policy',
       title: 'Privacy Policy',
       content: '# Privacy Policy\n\nLast updated: July 2025\n\n## 1. Information We Collect\n\nWe collect information you provide directly to us...\n\n## 2. How We Use Your Information\n\nWe use your information to provide and improve our services.\n\n## 3. Data Security\n\nWe implement appropriate security measures to protect your information.',
-      metaTitle: 'Privacy Policy | MegaDraw',
-      metaDesc: 'Learn how MegaDraw collects, uses, and protects your personal information.',
+      metaTitle: 'Privacy Policy | Lucky Lotto Play',
+      metaDesc: 'Learn how Lucky Lotto Play collects, uses, and protects your personal information.',
     },
     {
       slug: 'responsible-gaming',
       title: 'Responsible Gaming',
-      content: '# Responsible Gaming\n\nMegaDraw is committed to responsible gambling...\n\n## Setting Limits\n\nYou can set daily, weekly, or monthly deposit and spending limits.\n\n## Self-Exclusion\n\nIf you need a break, contact us to self-exclude.',
-      metaTitle: 'Responsible Gaming | MegaDraw',
-      metaDesc: 'MegaDraw\'s commitment to responsible gambling and available support resources.',
+      content: '# Responsible Gaming\n\nLucky Lotto Play is committed to responsible gambling...\n\n## Setting Limits\n\nYou can set daily, weekly, or monthly deposit and spending limits.\n\n## Self-Exclusion\n\nIf you need a break, contact us to self-exclude.',
+      metaTitle: 'Responsible Gaming | Lucky Lotto Play',
+      metaDesc: 'Lucky Lotto Play\'s commitment to responsible gambling and available support resources.',
     },
     {
       slug: 'about-us',
-      title: 'About MegaDraw',
-      content: '# About MegaDraw\n\nMegaDraw is The world\'s premier online lottery platform, offering all major global lottery games in one convenient place.\n\n## Our Mission\n\nTo provide globals with a safe, fair, and entertaining lottery experience online.\n\n## Licensed & Regulated\n\nMegaDraw operates under appropriate gambling licenses and adheres to all relevant global regulations.',
-      metaTitle: 'About Us | MegaDraw',
-      metaDesc: 'Learn about MegaDraw - The world\'s trusted online lottery platform.',
+      title: 'About Lucky Lotto Play',
+      content: '# About Lucky Lotto Play\n\nLucky Lotto Play is The world\'s premier online lottery platform, offering all major global lottery games in one convenient place.\n\n## Our Mission\n\nTo provide globals with a safe, fair, and entertaining lottery experience online.\n\n## Licensed & Regulated\n\nLucky Lotto Play operates under appropriate gambling licenses and adheres to all relevant global regulations.',
+      metaTitle: 'About Us | Lucky Lotto Play',
+      metaDesc: 'Learn about Lucky Lotto Play - The world\'s trusted online lottery platform.',
     },
   ]
 

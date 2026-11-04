@@ -3,12 +3,12 @@ import { api } from './api';
 
 const DEFAULT_SETTINGS: SystemSettings = {
   general: {
-    platformName: 'MegaDraw Lottery',
-    companyName: 'MegaDraw Global Ltd.',
-    supportEmail: 'support@megadraw.com',
+    platformName: 'Lucky Lotto Play',
+    companyName: 'Lucky Lotto Play',
+    supportEmail: 'support@luckylottoplay.live',
     supportPhone: '+1 (555) 123-4567',
-    websiteUrl: 'https://megadraw.example.com',
-    copyright: '© 2026 MegaDraw Global Ltd. All rights reserved.',
+    websiteUrl: 'https://luckylottoplay.live',
+    copyright: '© 2026 Lucky Lotto Play All rights reserved.',
     timezone: 'UTC',
     language: 'en',
     currency: 'Coins',

@@ -133,7 +133,7 @@ export default async function authRoutes(app: FastifyInstance) {
     try {
       await sendEmail({
         to: body.email,
-        subject: 'Verify your MegaDraw account',
+        subject: 'Verify your Lucky Lotto Play account',
         template: 'email-otp',
         data: {
           name: body.firstName || body.username || 'User',
@@ -184,7 +184,7 @@ export default async function authRoutes(app: FastifyInstance) {
     try {
       await sendEmail({
         to: email,
-        subject: 'Verify your MegaDraw account',
+        subject: 'Verify your Lucky Lotto Play account',
         template: 'email-otp',
         data: {
           name: (isPending ? pendingName : (user?.firstName || user?.username)) || 'User',
@@ -380,7 +380,7 @@ export default async function authRoutes(app: FastifyInstance) {
     try {
       await sendEmail({
         to: user.email,
-        subject: 'MegaDraw Login Verification Code',
+        subject: 'Lucky Lotto Play Login Verification Code',
         template: 'email-otp',
         data: { name: user.firstName, action: 'login', code },
       })
@@ -573,7 +573,7 @@ export default async function authRoutes(app: FastifyInstance) {
 
       await sendEmail({
         to: user.email,
-        subject: 'Reset your MegaDraw password',
+        subject: 'Reset your Lucky Lotto Play password',
         template: 'password-reset',
         data: {
           name: user.firstName,
@@ -655,7 +655,7 @@ export default async function authRoutes(app: FastifyInstance) {
     }
 
     const secret = otplib.authenticator.generateSecret()
-    const otpauth = otplib.authenticator.keyuri(user!.email, 'MegaDraw', secret)
+    const otpauth = otplib.authenticator.keyuri(user!.email, 'Lucky Lotto Play', secret)
     const qrCode = await generateQR(otpauth)
 
     // Store secret temporarily until confirmed

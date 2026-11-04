@@ -1,4 +1,4 @@
-# MegaDraw / OzLotto Platform
+# Lucky Lotto Play
 
 A comprehensive, production-ready global Lottery and Gaming Platform. This repository contains both the Fastify-based backend API and the React-based frontend application, as well as a complete Dockerized environment.
 
@@ -202,7 +202,7 @@ The platform enforces strict Role-Based Access Control (RBAC). Default roles inc
 - `USER`: Standard player account for purchasing tickets and managing the wallet.
 
 ---
-*MegaDraw Platform - Engineered for scale, fairness, and reliability.*
+*Lucky Lotto Play Platform - Engineered for scale, fairness, and reliability.*
 
 ---
 

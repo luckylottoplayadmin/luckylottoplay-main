@@ -21,7 +21,7 @@ export function TermsPage() {
               <FileText size={20} color="var(--color-primary)" /> 1. Introduction & Acceptance of Terms
             </h2>
             <p>
-              Welcome to <strong>MegaDraw</strong> ("Platform", "we", "us", or "our"). By registering an account, accessing, or utilizing any portion of our online lottery services, you agree to be bound by these Terms and Conditions, our Privacy Policy, and all applicable jurisdictional laws and regulations. If you do not agree with any part of these terms, you must refrain from using the Platform immediately.
+              Welcome to <strong>Lucky Lotto Play</strong> ("Platform", "we", "us", or "our"). By registering an account, accessing, or utilizing any portion of our online lottery services, you agree to be bound by these Terms and Conditions, our Privacy Policy, and all applicable jurisdictional laws and regulations. If you do not agree with any part of these terms, you must refrain from using the Platform immediately.
             </p>
           </section>
 
@@ -71,7 +71,7 @@ export function TermsPage() {
           <section>
             <h2 style={{ color: 'var(--text-primary)', fontSize: '1.25rem', marginBottom: '12px' }}>6. Limitation of Liability</h2>
             <p>
-              MegaDraw shall not be liable for any indirect, incidental, or consequential damages arising from service interruptions, network failure, or unauthorized access to user accounts caused by third-party negligence.
+              Lucky Lotto Play shall not be liable for any indirect, incidental, or consequential damages arising from service interruptions, network failure, or unauthorized access to user accounts caused by third-party negligence.
             </p>
           </section>
         </div>
@@ -149,7 +149,7 @@ export function ResponsibleGamingPage() {
           <section>
             <h2 style={{ color: 'var(--text-primary)', fontSize: '1.25rem', marginBottom: '12px' }}>Play Responsibly</h2>
             <p>
-              At MegaDraw, we believe lottery games should always be fun, safe, and controlled entertainment. We encourage all players to set personal budgets, avoid chasing losses, and take breaks.
+              At Lucky Lotto Play, we believe lottery games should always be fun, safe, and controlled entertainment. We encourage all players to set personal budgets, avoid chasing losses, and take breaks.
             </p>
           </section>
 

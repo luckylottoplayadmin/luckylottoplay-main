@@ -1,4 +1,4 @@
-// Shared TypeScript types for the MegaDraw frontend
+// Shared TypeScript types for the Lucky Lotto Play frontend
 
 export type UserRole = 'SUPER_ADMIN' | 'ADMIN' | 'SUPPORT' | 'AFFILIATE_MANAGER' | 'USER'
 export type UserStatus = 'ACTIVE' | 'SUSPENDED' | 'BANNED' | 'PENDING_VERIFICATION'

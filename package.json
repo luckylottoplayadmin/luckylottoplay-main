@@ -1,7 +1,7 @@
 {
   "name": "lottery-backend",
   "version": "1.0.0",
-  "description": "OzLotto Platform Backend API",
+  "description": "Lucky Lotto Play Platform Backend API",
   "main": "backend/dist/server.js",
   "scripts": {
     "dev": "tsx watch backend/src/server.ts",

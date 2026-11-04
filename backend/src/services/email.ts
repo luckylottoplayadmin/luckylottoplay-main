@@ -20,11 +20,11 @@ const templates: Record<string, (data: any) => string> = {
   'email-verification': (d) => `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
       <div style="background: linear-gradient(135deg, #1a1f3c 0%, #2d3561 100%); padding: 40px; text-align: center;">
-        <h1 style="color: #f4b942; margin: 0; font-size: 28px;">MegaDraw</h1>
+        <h1 style="color: #f4b942; margin: 0; font-size: 28px;">Lucky Lotto Play</h1>
       </div>
       <div style="padding: 40px; background: #ffffff;">
         <h2>Hi ${d.name},</h2>
-        <p>Welcome to MegaDraw! Please verify your email to start playing.</p>
+        <p>Welcome to Lucky Lotto Play! Please verify your email to start playing.</p>
         <a href="${d.verifyUrl}" style="display: inline-block; padding: 14px 32px; background: #f4b942; color: #1a1f3c; text-decoration: none; border-radius: 6px; font-weight: bold; margin: 20px 0;">
           Verify Email Address
         </a>
@@ -35,7 +35,7 @@ const templates: Record<string, (data: any) => string> = {
   'password-reset': (d) => `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
       <div style="background: linear-gradient(135deg, #1a1f3c 0%, #2d3561 100%); padding: 40px; text-align: center;">
-        <h1 style="color: #f4b942; margin: 0; font-size: 28px;">MegaDraw</h1>
+        <h1 style="color: #f4b942; margin: 0; font-size: 28px;">Lucky Lotto Play</h1>
       </div>
       <div style="padding: 40px; background: #ffffff;">
         <h2>Hi ${d.name},</h2>
@@ -50,7 +50,7 @@ const templates: Record<string, (data: any) => string> = {
   'ticket-confirmation': (d) => `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
       <div style="background: linear-gradient(135deg, #1a1f3c 0%, #2d3561 100%); padding: 40px; text-align: center;">
-        <h1 style="color: #f4b942; margin: 0; font-size: 28px;">MegaDraw</h1>
+        <h1 style="color: #f4b942; margin: 0; font-size: 28px;">Lucky Lotto Play</h1>
       </div>
       <div style="padding: 40px; background: #ffffff;">
         <h2>Ticket Confirmed! 🎉</h2>
@@ -78,7 +78,7 @@ const templates: Record<string, (data: any) => string> = {
   'email-otp': (d) => `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
       <div style="background: linear-gradient(135deg, #1a1f3c 0%, #2d3561 100%); padding: 40px; text-align: center;">
-        <h1 style="color: #f4b942; margin: 0; font-size: 28px;">MegaDraw Security</h1>
+        <h1 style="color: #f4b942; margin: 0; font-size: 28px;">Lucky Lotto Play Security</h1>
       </div>
       <div style="padding: 40px; background: #ffffff;">
         <h2>Hi ${d.name},</h2>
@@ -120,8 +120,8 @@ async function sendViaSMTP(to: string, subject: string, html: string, from: stri
 
 export async function sendEmail({ to, subject, template, data }: EmailOptions): Promise<void> {
   const html = templates[template]?.(data) || `<p>${JSON.stringify(data)}</p>`
-  const defaultFrom = process.env.RESEND_API_KEY ? 'onboarding@resend.dev' : 'noreply@megadraw.com'
-  const from = process.env.FROM_EMAIL || defaultFrom
+  const defaultFrom = process.env.RESEND_API_KEY ? 'onboarding@resend.dev' : 'noreply@luckylottoplay.live'
+  const from = (process.env.FROM_EMAIL || defaultFrom).replace(/^MegaDraw\s*</i, 'Lucky Lotto Play <')
 
   // Mock delivery is available only in explicit local development.
   if (!process.env.RESEND_API_KEY && !process.env.SMTP_USER) {

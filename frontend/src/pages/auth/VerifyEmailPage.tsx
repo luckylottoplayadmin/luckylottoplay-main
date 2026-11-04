@@ -28,7 +28,7 @@ export default function VerifyEmailPage() {
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
           <Link to="/" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', color: 'white', fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 900 }}>
             <Zap size={24} style={{ color: 'var(--color-secondary)' }} />
-            Mega<span style={{ color: 'var(--color-secondary)' }}>Draw</span>
+            Lucky <span style={{ color: 'var(--color-secondary)' }}>Lotto Play</span>
           </Link>
         </div>
         <div className="card card-body" style={{ textAlign: 'center' }}>

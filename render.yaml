@@ -41,7 +41,7 @@ services:
       - key: FRONTEND_URL
         sync: false
       - key: FROM_EMAIL
-        value: noreply@megadraw.com
+        sync: false
       - key: SMTP_HOST
         sync: false
       - key: SMTP_PORT

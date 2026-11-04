@@ -1,3 +1,4 @@
+import BrandLogo from '@/components/common/BrandLogo'
 import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
@@ -79,7 +80,7 @@ export default function LoginPage() {
         {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
           <Link to="/" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', color: 'white', fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 900 }}>
-            <img src="/logo.png" alt="MegaDraw Logo" width="160" height="48" style={{ height: '48px', width: 'auto' }} />
+            <BrandLogo />
           </Link>
           <h1 style={{ color: '#E2E8F0', fontSize: '15px', marginTop: '6px', fontWeight: 500 }}>
             Sign in to your account
@@ -169,7 +170,7 @@ export default function LoginPage() {
             </form>
 
             <div className="divider-label">
-              <span>New to MegaDraw?</span>
+              <span>New to Lucky Lotto Play?</span>
             </div>
 
             <Link to="/register" className="btn btn-outline btn-full">

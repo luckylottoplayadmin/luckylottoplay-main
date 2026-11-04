@@ -1,3 +1,4 @@
+import BrandLogo from '@/components/common/BrandLogo'
 import { Link } from 'react-router-dom'
 import { Zap, Shield, Phone, Mail, ExternalLink } from 'lucide-react'
 
@@ -41,7 +42,7 @@ export default function Footer() {
           {/* Brand Column */}
           <div>
             <Link to="/" className="footer-logo">
-              <img src="/logo.png" alt="MegaDraw" style={{ height: '32px' }} />
+              <BrandLogo />
             </Link>
             <p className="footer-desc">
               World's premier online lottery platform. Play MegaDraw, Powerball, Saturday Lotto and more — safely and securely.
@@ -51,11 +52,11 @@ export default function Footer() {
               <span>18+ only | Gamble Responsibly | <a href="/responsible-gaming" style={{ color: 'inherit', textDecoration: 'underline' }}>Get Help</a></span>
             </div>
             <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <a href="tel:1800695686" className="footer-link" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Phone size={14} /> 1800 MegaDraw
+              <a href="/contact" className="footer-link" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Phone size={14} /> Contact support
               </a>
-              <a href="mailto:support@MegaDraw.com" className="footer-link" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Mail size={14} /> support@MegaDraw.com
+              <a href="mailto:support@luckylottoplay.live" className="footer-link" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Mail size={14} /> support@luckylottoplay.live
               </a>
             </div>
           </div>
@@ -77,7 +78,7 @@ export default function Footer() {
 
         <div className="footer-bottom">
           <div className="footer-bottom-text">
-            © {currentYear} MegaDraw Pty Ltd. All rights reserved. ABN 12 345 678 901
+            © {currentYear} Lucky Lotto Play All rights reserved.
           </div>
         </div>
       </div>

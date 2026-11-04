@@ -19,9 +19,9 @@ export default function ForgotPasswordPage() {
     <main className="forgot-password-main" style={{ minHeight: '100vh', background: 'var(--gradient-hero)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '80px 20px 20px' }}>
       <div style={{ width: '100%', maxWidth: '400px' }}>
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <Link to="/" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', color: 'white', fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 900 }} aria-label="MegaDraw Homepage">
+          <Link to="/" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', color: 'white', fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 900 }} aria-label="Lucky Lotto Play Homepage">
             <Zap size={24} style={{ color: 'var(--color-secondary)' }} />
-            Mega<span style={{ color: 'var(--color-secondary)' }}>Draw</span>
+            Lucky <span style={{ color: 'var(--color-secondary)' }}>Lotto Play</span>
           </Link>
           <h1 className="sr-only">Forgot Password</h1>
         </div>

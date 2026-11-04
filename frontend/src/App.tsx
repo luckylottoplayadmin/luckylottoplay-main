@@ -75,7 +75,7 @@ const AdminAffiliatesPage = lazy(() => import('@/pages/admin/AffiliatesAdminPage
 const AdminJackpotPage = lazy(() => import('@/pages/admin/JackpotManagementPage'))
 
 const PageLoader = () => (
-  <LoadingScreen message="Loading MegaDraw..." />
+  <LoadingScreen message="Loading Lucky Lotto Play..." />
 )
 
 export default function App() {
