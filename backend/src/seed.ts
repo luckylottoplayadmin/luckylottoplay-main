@@ -30,11 +30,13 @@ async function main() {
     timeCost: 3,
   })
 
+  const adminEmail = process.env.ADMIN_SEED_EMAIL || 'admin@luckylottoplay.live'
+
   const admin = await prisma.user.upsert({
     where: { username: 'admin' },
-    update: { email: 'admin@megadraw.com' },
+    update: { email: adminEmail },
     create: {
-      email: 'admin@megadraw.com',
+      email: adminEmail,
       username: 'admin',
       passwordHash: adminPasswordHash,
       firstName: 'Super',
@@ -473,7 +475,7 @@ async function main() {
       minAmount: 50,
       maxAmount: 50000,
       fees: 0,
-      config: { bsb: '123-456', accountNumber: '123456789', accountName: 'MegaDraw Pty Ltd' },
+      config: { bsb: '123-456', accountNumber: '123456789', accountName: 'Lucky Lotto Play' },
     },
   ]
 
@@ -564,7 +566,7 @@ async function main() {
   console.log('✅ Sample banner seeded')
 
   console.log('\n🎉 Seed completed successfully!')
-  console.log('📧 Admin login: admin@megadraw.com')
+  console.log(`📧 Admin login: ${adminEmail}`)
   console.log('Admin password configured through ADMIN_SEED_PASSWORD')
 }
 
