@@ -123,9 +123,9 @@ export async function sendEmail({ to, subject, template, data }: EmailOptions): 
   const defaultFrom = process.env.RESEND_API_KEY ? 'onboarding@resend.dev' : 'noreply@luckylottoplay.live'
   const from = (process.env.FROM_EMAIL || defaultFrom).replace(/^MegaDraw\s*</i, 'Lucky Lotto Play <')
 
-  // Mock delivery is available only in explicit local development.
+  // Mock delivery is available in development or when ALLOW_MOCK_EMAIL=true.
   if (!process.env.RESEND_API_KEY && !process.env.SMTP_USER) {
-    if (process.env.NODE_ENV !== 'development') {
+    if (process.env.NODE_ENV !== 'development' && process.env.ALLOW_MOCK_EMAIL !== 'true') {
       throw new Error('Email delivery is not configured')
     }
     console.log('\n======================================================')

@@ -318,8 +318,9 @@ async function start() {
   checkSecretStrength()
   checkCORSOrigins()
   if (process.env.NODE_ENV === 'production' && !process.env.RESEND_API_KEY &&
-      !(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS)) {
-    throw new Error('Production requires configured email delivery credentials')
+      !(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) &&
+      process.env.ALLOW_MOCK_EMAIL !== 'true') {
+    throw new Error('Production requires configured email delivery credentials (or set ALLOW_MOCK_EMAIL=true for initial deployment testing)')
   }
 
   const app = await buildApp()
