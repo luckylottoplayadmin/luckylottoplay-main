@@ -408,7 +408,7 @@ export default function GameDetailPage() {
                   value={numDraws}
                   onChange={(e) => setNumDraws(Number(e.target.value))}
                 >
-                  {[1, 2, 3, 4, 5, 10].map((d) => (
+                  {[1].map((d) => (
                     <option key={d} value={d}>{d} draw{d > 1 ? 's' : ''}</option>
                   ))}
                 </select>
@@ -527,7 +527,7 @@ export default function GameDetailPage() {
                 {game.hasSupplementary && <li>An additional <strong>{game.suppNumbers}</strong> supplementary number(s) will be drawn</li>}
                 <li>Minimum age: <strong>18 years</strong></li>
                 <li>Maximum <strong>{game.rulesJson?.maxLines || 50}</strong> lines per ticket</li>
-                <li>Play up to <strong>{game.rulesJson?.maxDraws || 10}</strong> consecutive draws</li>
+                <li>Each purchase enters <strong>one draw</strong></li>
               </ul>
             </div>
           </div>

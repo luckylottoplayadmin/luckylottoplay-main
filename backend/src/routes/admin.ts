@@ -12,6 +12,7 @@ import cmsRoutes from './cms'
 import adminSupportRoutes from './adminSupport'
 import jackpotRoutes from './jackpot'
 import crypto from 'crypto'
+import { settleDraw, scheduleDraw } from '../services/drawSettlement'
 
 // MED-1: Explicit Zod whitelist for Banner fields — prevents mass-assignment
 // against any unexpected columns on the Prisma Banner model.
@@ -805,15 +806,8 @@ export default async function adminRoutes(app: FastifyInstance) {
       return reply.status(400).send({ success: false, error: 'Missing required fields' })
     }
 
-    const draw = await prisma.draw.create({
-      data: {
-        gameId,
-        drawNumber: Number(drawNumber),
-        scheduledAt: new Date(scheduledAt),
-        jackpotAmount: Number(jackpotAmount),
-        status: 'SCHEDULED',
-      }
-    })
+    const draw = await scheduleDraw({ gameId, drawNumber: Number(drawNumber),
+      scheduledAt: new Date(scheduledAt), jackpotAmount: Number(jackpotAmount) })
 
     await auditLog(request.user.userId, 'DRAW_SCHEDULED', 'Draw', draw.id, undefined, { gameId, drawNumber, scheduledAt }, request)
     return reply.send({ success: true, message: 'Draw scheduled successfully', data: draw })
@@ -896,116 +890,24 @@ export default async function adminRoutes(app: FastifyInstance) {
 
   app.patch('/draws/:id/execute', async (request, reply) => {
     const { id } = request.params as { id: string }
-    const { winningNumbers, powerball } = request.body as any
-    
-    // In a real system, this would trigger workers to calculate winners.
-    // Here we just mark it as COMPLETED and save the numbers.
-    const draw = await prisma.draw.update({
-      where: { id },
-      data: {
-        status: 'COMPLETED',
-        drawnAt: new Date(),
-        winningNumbers: winningNumbers || [],
-        powerball: powerball || null,
-        isVerified: true,
-        verifiedById: request.user.userId
-      }
-    })
-
-    await auditLog(request.user.userId, 'DRAW_EXECUTED', 'Draw', id, undefined, { winningNumbers, powerball }, request)
-    return reply.send({ success: true, message: 'Draw executed successfully', data: draw })
+    const body = z.object({
+      winningNumbers: z.array(z.number().int().positive()),
+      supplementary: z.array(z.number().int().positive()).optional(),
+      powerball: z.number().int().positive().nullable().optional(),
+    }).parse(request.body)
+    const result = await settleDraw(id, body as any)
+    await auditLog(request.user.userId, 'DRAW_EXECUTED', 'Draw', id, undefined, result, request)
+    const draw = await prisma.draw.findUnique({ where: { id } })
+    return reply.send({ success: true, message: 'Draw settled; prizes credited automatically.', data: draw })
   })
 
   app.patch('/draws/:id/publish', async (request, reply) => {
     const { id } = request.params as { id: string }
-    
-    // 1. Fetch draw with tickets
-    const draw = await prisma.draw.findUnique({
-      where: { id },
-      include: {
-        game: {
-          include: { prizeDivisions: { orderBy: { divisionOrder: 'asc' } } }
-        },
-        tickets: {
-          include: { numbers: true }
-        }
-      }
-    });
-
-    if (!draw) return reply.status(404).send({ success: false, error: 'Draw not found' });
-    if (draw.publishedAt) return reply.status(400).send({ success: false, error: 'Already published' });
-
-    // 2. Process tickets
-    const winningNums = draw.winningNumbers as number[] || [];
-    const pb = draw.powerball;
-
-    for (const ticket of draw.tickets) {
-      if (ticket.status !== 'ACTIVE') continue;
-
-      let bestDivision: any = null;
-      let bestPrize = 0;
-
-      for (const line of ticket.numbers) {
-        const nums = line.numbers as number[];
-        const matched = nums.filter(n => winningNums.includes(n)).length;
-        const pbMatched = pb && line.powerball === pb;
-
-        for (const div of draw.game.prizeDivisions) {
-          const numMatch = div.matchNumbers === matched;
-          const pbMatch = !div.matchPB || pbMatched;
-
-          if (numMatch && pbMatch) {
-            const prizeAmt = Number(div.fixedPrize || draw.jackpotAmount);
-            if (prizeAmt > bestPrize) {
-              bestPrize = prizeAmt;
-              bestDivision = div;
-            }
-            break;
-          }
-        }
-      }
-
-      if (bestDivision && bestPrize > 0) {
-        await prisma.ticket.update({
-          where: { id: ticket.id },
-          data: { status: 'WON', prizeAmount: bestPrize, prizeDivision: bestDivision.divisionName }
-        });
-
-        const wallet = await prisma.wallet.findUnique({ where: { userId: ticket.userId } });
-        if (wallet) {
-          await prisma.wallet.update({
-            where: { id: wallet.id },
-            data: { balance: { increment: bestPrize }, totalWon: { increment: bestPrize } }
-          });
-          await prisma.transaction.create({
-            data: {
-              userId: ticket.userId,
-              walletId: wallet.id,
-              type: 'PRIZE_CREDIT',
-              amount: bestPrize,
-              balanceBefore: wallet.balance,
-              balanceAfter: Number(wallet.balance) + bestPrize,
-              reference: 'admin-pub-' + draw.id + '-' + ticket.id,
-              description: 'Winnings from Draw #' + draw.drawNumber,
-              status: 'COMPLETED'
-            }
-          });
-        }
-      } else {
-        await prisma.ticket.update({
-          where: { id: ticket.id },
-          data: { status: 'LOST' }
-        });
-      }
-    }
-
-    // 3. Mark as published
-    const updatedDraw = await prisma.draw.update({
-      where: { id },
-      data: { publishedAt: new Date() }
-    });
-
-    await auditLog(request.user.userId, 'DRAW_PUBLISHED', 'Draw', id, undefined, {}, request)
+    const result = await settleDraw(id)
+    // Publishing only changes visibility; it never credits wallets.
+    await prisma.draw.updateMany({ where: { id, status: 'COMPLETED', publishedAt: null },
+      data: { publishedAt: new Date() } })
+    await auditLog(request.user.userId, 'DRAW_PUBLISHED', 'Draw', id, undefined, result, request)
     return reply.send({ success: true, message: 'Draw results published securely' })
   })
 

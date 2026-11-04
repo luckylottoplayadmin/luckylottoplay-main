@@ -186,96 +186,11 @@ export default async function ticketRoutes(app: FastifyInstance) {
     })
   })
 
-  // POST /tickets/:id/claim - Claim winning prize
-  app.post('/:id/claim', { preHandler: authenticate }, async (request, reply) => {
-    const { id } = request.params as { id: string }
-    const userId = request.user.userId
-
-    const ticket = await prisma.ticket.findFirst({
-      where: { id, userId, status: 'WON' },
-      include: {
-        winningEntries: { where: { isPaid: false } },
-        game: { select: { name: true } },
-      },
-    })
-
-    if (!ticket) {
-      return reply.status(404).send({
-        success: false,
-        error: 'Winning ticket not found or prize already claimed',
-      })
-    }
-
-    const totalPrize = ticket.winningEntries.reduce(
-      (sum, e) => sum + Number(e.prizeAmount),
-      0
-    )
-
-    if (totalPrize === 0) {
-      return reply.status(400).send({ success: false, error: 'No unclaimed prize' })
-    }
-
-    const wallet = await prisma.wallet.findUnique({ where: { userId } })
-    if (!wallet) return reply.status(404).send({ success: false, error: 'Wallet not found' })
-
-    await prisma.$transaction(async (tx) => {
-      // Mark winning entries as paid
-      await tx.winningEntry.updateMany({
-        where: { ticketId: id, isPaid: false },
-        data: { isPaid: true, paidAt: new Date() },
-      })
-
-      // Update ticket
-      await tx.ticket.update({
-        where: { id },
-        data: { claimedAt: new Date() },
-      })
-
-      const balBefore = Number(wallet.balance)
-
-      // Credit wallet
-      await tx.wallet.update({
-        where: { userId },
-        data: {
-          balance: { increment: totalPrize },
-          totalWon: { increment: totalPrize },
-        },
-      })
-
-      // Log transaction
-      await tx.transaction.create({
-        data: {
-          userId,
-          walletId: wallet.id,
-          type: 'PRIZE_CREDIT',
-          status: 'COMPLETED',
-          amount: totalPrize,
-          balanceBefore: balBefore,
-          balanceAfter: balBefore + totalPrize,
-          reference: `PRIZE-${id.substring(0, 8).toUpperCase()}`,
-          description: `Prize for ${ticket.game.name} ticket #${ticket.ticketNumber}`,
-          ticketId: id,
-        },
-      })
-    })
-
-    // Notify user
-    await prisma.notification.create({
-      data: {
-        userId,
-        title: '🎉 Prize claimed!',
-        message: `$${totalPrize.toFixed(2)} USD has been credited to your wallet.`,
-        data: { ticketId: id },
-      },
-    })
-
-    await auditLog(userId, 'PRIZE_CLAIMED', 'Ticket', id, undefined, { amount: totalPrize }, request)
-
-    return reply.send({
-      success: true,
-      message: `Prize of $${totalPrize.toFixed(2)} credited to your wallet!`,
-      data: { amount: totalPrize },
-    })
+  // Payouts are automatic. Legacy clients must never trigger another credit,
+  // including for old entries whose historical isPaid flag was incorrect.
+  app.post('/:id/claim', { preHandler: authenticate }, async (_request, reply) => {
+    return reply.status(410).send({ success: false, code: 'AUTOMATIC_PRIZE_SETTLEMENT',
+      error: 'Prizes are credited automatically when the draw is settled. Contact support for a historical payout review.' })
   })
 
   // GET /tickets/validate/:ticketNumber - Validate ticket by number

@@ -1,15 +1,13 @@
 import { useParams, Link } from 'react-router-dom'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { ticketsService } from '@/services/index'
 import NumberBall from '@/components/UI/NumberBall'
 import Spinner from '@/components/UI/Spinner'
 import { ArrowLeft, Ticket, Calendar, CheckCircle, Info, Clock, Receipt } from 'lucide-react'
 import GoldCoin from '@/components/common/GoldCoin'
-import toast from 'react-hot-toast'
 
 export default function TicketDetailPage() {
   const { id } = useParams<{ id: string }>()
-  const queryClient = useQueryClient()
 
   const { data: ticket, isLoading } = useQuery({
     queryKey: ['ticket', id],
@@ -18,21 +16,11 @@ export default function TicketDetailPage() {
     enabled: !!id,
   })
 
-  const claimMutation = useMutation({
-    mutationFn: () => ticketsService.claimPrize(id!),
-    onSuccess: (r) => {
-      toast.success(`Claimed ${r.data.data?.amount} Coins successfully!`)
-      queryClient.invalidateQueries({ queryKey: ['ticket', id] })
-      queryClient.invalidateQueries({ queryKey: ['wallet'] })
-    },
-    onError: (err: any) => toast.error(err.response?.data?.error || 'Failed to claim prize'),
-  })
-
   if (isLoading) return <div className="page-wrapper" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}><Spinner size="lg" /></div>
   if (!ticket) return <div className="page-wrapper"><div className="container" style={{ padding: '40px 0' }}>Ticket not found</div></div>
 
   const isWinner = ticket.status === 'WON'
-  const canClaim = isWinner && ticket.winningEntries?.some((w: any) => !w.isPaid)
+  const isPaid = isWinner && ticket.winningEntries?.length > 0 && ticket.winningEntries.every((w: any) => w.isPaid)
 
   return (
     <div className="page-wrapper section">
@@ -68,14 +56,9 @@ export default function TicketDetailPage() {
                   </div>
                   <div style={{ fontSize: '14px' }}>Congratulations! This ticket won <strong>${Number(ticket.prizeAmount).toFixed(2)}</strong>.</div>
                 </div>
-                {canClaim && (
-                  <button className="btn btn-primary btn-sm" onClick={() => claimMutation.mutate()} disabled={claimMutation.isPending}>
-                    {claimMutation.isPending ? 'Claiming...' : 'Claim Prize'}
-                  </button>
-                )}
-                {!canClaim && ticket.claimedAt && (
-                  <span className="badge badge-success" style={{ background: 'transparent', border: '1px solid currentColor' }}>Prize Claimed</span>
-                )}
+                <span className="badge badge-success" style={{ background: 'transparent', border: '1px solid currentColor' }}>
+                  {isPaid ? 'Prize credited automatically' : 'Contact support for payout status'}
+                </span>
               </div>
             )}
 

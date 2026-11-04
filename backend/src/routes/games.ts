@@ -10,6 +10,7 @@ import { prisma, redis } from '../server'
 import { authenticate, requireAdmin } from '../middleware/auth'
 import { processAffiliateCommission } from '../services/affiliate'
 import crypto from 'crypto'
+import { assertDrawOpen, SALES_CLOSE_MS } from '../services/drawEligibility'
 
 const purchaseSchema = z.object({
   gameId: z.string(),
@@ -20,7 +21,7 @@ const purchaseSchema = z.object({
     powerball: z.number().int().positive().optional(),
   })).min(1).max(1000),
   isQuickPick: z.boolean().default(false),
-  draws: z.number().int().min(1).max(25).default(1),
+  draws: z.literal(1).default(1),
   isSyndicate: z.boolean().default(false),
   syndicateId: z.string().optional(),
 })
@@ -206,7 +207,7 @@ export default async function gameRoutes(app: FastifyInstance) {
         })
       }
 
-      if (game.hasPowerball && !line.powerball) {
+      if (game.hasPowerball && (!line.powerball || line.powerball > game.powerballPool)) {
         return reply.status(400).send({ success: false, error: 'Powerball number required' })
       }
     }
@@ -215,7 +216,7 @@ export default async function gameRoutes(app: FastifyInstance) {
     const draw = body.drawId
       ? await prisma.draw.findUnique({ where: { id: body.drawId } })
       : await prisma.draw.findFirst({
-          where: { gameId: game.id, status: 'SCHEDULED' },
+          where: { gameId: game.id, status: 'SCHEDULED', scheduledAt: { gt: new Date(Date.now() + SALES_CLOSE_MS) } },
           orderBy: { scheduledAt: 'asc' },
         })
 
@@ -253,6 +254,9 @@ export default async function gameRoutes(app: FastifyInstance) {
     let ticket: any
     try {
       ticket = await prisma.$transaction(async (tx) => {
+        // The settlement engine takes this same row lock. No purchase can
+        // commit into a draw after settlement has acquired ownership.
+        await tx.$queryRaw`SELECT id FROM draws WHERE id = ${draw.id} FOR UPDATE`
         // MED-02: Lock the wallet row so no concurrent transaction can read the
         // same balance and both pass the insufficient-funds check.
         const [lockedWallet] = await tx.$queryRaw<Array<{ id: string; balance: any; bonusBalance: any }>>`
@@ -262,6 +266,9 @@ export default async function gameRoutes(app: FastifyInstance) {
           FOR UPDATE
         `
 
+        // Re-read after both locks; a request may have waited past sales close.
+        const currentDraw = await tx.draw.findUnique({ where: { id: draw.id } })
+        assertDrawOpen(currentDraw, game.id, new Date())
         const balance      = Number(lockedWallet.balance)
         const bonusBalance = Number(lockedWallet.bonusBalance ?? 0)
 
@@ -336,11 +343,11 @@ export default async function gameRoutes(app: FastifyInstance) {
       return newTicket
       }) // end $transaction
     } catch (err: any) {
-      if (err?.code === 'INSUFFICIENT_FUNDS') {
+      if (err?.code === 'INSUFFICIENT_FUNDS' || err?.code === 'DRAW_CLOSED') {
         return reply.status(400).send({
           success: false,
           error: err.message,
-          code: 'INSUFFICIENT_FUNDS',
+          code: err.code,
         })
       }
       // Re-throw unexpected errors (Prisma constraint violations etc.)

@@ -26,20 +26,7 @@ export default async function paymentRoutes(app: FastifyInstance) {
 
   // GET /payments/methods - Available payment methods
   app.get('/methods', async (request, reply) => {
-    const methods = await prisma.paymentMethod.findMany({
-      where: { isActive: true },
-      select: {
-        id: true,
-        gateway: true,
-        name: true,
-        description: true,
-        minAmount: true,
-        maxAmount: true,
-        fees: true,
-      },
-    })
-
-    return reply.send({ success: true, data: methods })
+    return reply.send({ success: true, data: [], directPaymentsEnabled: false })
   })
 
   // GET /payments/methods/all - All payment methods (admin)

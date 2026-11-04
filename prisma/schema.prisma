@@ -366,6 +366,7 @@ model Draw {
 
   tickets        Ticket[]
   winningEntries WinningEntry[]
+  settlement     DrawSettlement?
 
   @@map("draws")
 }
@@ -1070,3 +1071,13 @@ model JackpotTransaction {
   @@map("jackpot_transactions")
 }
 
+
+// A committed row means all payouts, ticket results and the next draw committed.
+model DrawSettlement {
+  drawId    String   @id
+  draw      Draw     @relation(fields: [drawId], references: [id])
+  summary   Json
+  createdAt DateTime @default(now())
+
+  @@map("draw_settlements")
+}

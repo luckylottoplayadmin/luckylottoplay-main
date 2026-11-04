@@ -6,7 +6,7 @@ echo "==> Starting container entrypoint..."
 # Apply database migrations if DATABASE_URL is configured
 if [ -n "$DATABASE_URL" ]; then
   echo "==> Applying Prisma migrations (prisma migrate deploy)..."
-  npx prisma migrate deploy || echo "==> [Warning] Database migration failed or database unreachable. Proceeding with startup."
+  npx prisma migrate deploy
 
   echo "==> Ensuring initial database seed (games, draws, settings, admin)..."
   if [ -f "backend/dist/seed.js" ]; then

@@ -32,9 +32,10 @@ export function DrawExecutionDrawer({ drawId, onClose }: Props) {
   // Execution Form
   const [manualNumbers, setManualNumbers] = useState('')
   const [manualPb, setManualPb] = useState('')
+  const [manualSupp, setManualSupp] = useState('')
 
   const executeMutation = useMutation({
-    mutationFn: async (data: { winningNumbers: number[], powerball: number | null }) => {
+    mutationFn: async (data: { winningNumbers: number[], powerball: number | null, supplementary?: number[] }) => {
       return api.patch(`/admin/draws/${drawId}/execute`, data)
     },
     onSuccess: (res) => {
@@ -108,7 +109,8 @@ export function DrawExecutionDrawer({ drawId, onClose }: Props) {
       return toast.error(`Please enter exactly ${record?.game?.minNumbers} numbers.`)
     }
     
-    executeMutation.mutate({ winningNumbers: nums, powerball: pb })
+    executeMutation.mutate({ winningNumbers: nums, powerball: pb,
+      supplementary: record?.game?.hasSupplementary ? manualSupp.split(',').map(n => Number(n.trim())) : undefined })
   }
 
   if (!drawId) return null
@@ -243,6 +245,12 @@ export function DrawExecutionDrawer({ drawId, onClose }: Props) {
                             <label className="form-label">Primary Numbers (comma separated)</label>
                             <input type="text" className="form-input" placeholder={record?.game?.minNumbers === 1 ? "e.g. 45" : "e.g. 5, 12, 23, 34, 41, 45"} value={manualNumbers} onChange={e => setManualNumbers(e.target.value)} />
                           </div>
+                          {record?.game?.hasSupplementary && (
+                            <div style={{ flex: 1 }}>
+                              <label className="form-label">Supplementary Numbers (comma separated)</label>
+                              <input className="form-input" value={manualSupp} onChange={e => setManualSupp(e.target.value)} />
+                            </div>
+                          )}
                           {record?.game?.hasPowerball && (
                             <div style={{ width: '150px' }}>
                               <label className="form-label">Powerball</label>
@@ -263,16 +271,16 @@ export function DrawExecutionDrawer({ drawId, onClose }: Props) {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-xl)' }}>
                   <div className="card" style={{ padding: 'var(--space-xl)', textAlign: 'center' }}>
                     <Shield size={48} color="#8b5cf6" style={{ margin: '0 auto 16px' }} />
-                    <h2 style={{ marginTop: 0 }}>Cryptographic Verification</h2>
+                    <h2 style={{ marginTop: 0 }}>Publish Results</h2>
                     <p style={{ color: 'var(--text-secondary)', maxWidth: '500px', margin: '0 auto 24px' }}>
-                      Publishing the draw results will automatically trigger smart-contracts/background workers to verify all tickets, calculate prize divisions, and distribute funds to players' wallets. This action is immutable.
+                      Prizes are credited automatically when the draw settles. Publishing makes the completed results available without issuing another payout.
                     </p>
                     <button 
                       className="btn btn-primary btn-lg" 
                       onClick={() => publishMutation.mutate()}
                       disabled={record?.publishedAt || publishMutation.isPending}
                     >
-                      {record?.publishedAt ? 'Results Published' : 'Publish Results & Distribute Prizes'}
+                      {record?.publishedAt ? 'Results Published' : 'Publish Results'}
                     </button>
                   </div>
 

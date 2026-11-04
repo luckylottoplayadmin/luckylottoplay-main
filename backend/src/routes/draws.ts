@@ -8,7 +8,7 @@ import { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { prisma } from '../server'
 import { authenticate, requireAdmin, auditLog } from '../middleware/auth'
-import { processDrawJackpot } from '../services/jackpot.service'
+import { settleDraw, scheduleDraw } from '../services/drawSettlement'
 
 const createDrawSchema = z.object({
   gameId: z.string(),
@@ -99,26 +99,8 @@ export default async function drawRoutes(app: FastifyInstance) {
   }, async (request, reply) => {
     const body = createDrawSchema.parse(request.body)
 
-    // Check game exists
-    const game = await prisma.game.findUnique({ where: { id: body.gameId } })
-    if (!game) return reply.status(404).send({ success: false, error: 'Game not found' })
-
-    // Check for duplicate draw number
-    const existing = await prisma.draw.findFirst({
-      where: { gameId: body.gameId, drawNumber: body.drawNumber },
-    })
-    if (existing) {
-      return reply.status(409).send({ success: false, error: 'Draw number already exists for this game' })
-    }
-
-    const draw = await prisma.draw.create({
-      data: {
-        gameId: body.gameId,
-        drawNumber: body.drawNumber,
-        scheduledAt: new Date(body.scheduledAt),
-        jackpotAmount: body.jackpotAmount,
-      },
-    })
+    const draw = await scheduleDraw({ ...body, gameId: body.gameId!, drawNumber: body.drawNumber!,
+      scheduledAt: new Date(body.scheduledAt), jackpotAmount: body.jackpotAmount! })
 
     await auditLog(request.user.userId, 'DRAW_CREATED', 'Draw', draw.id, undefined, body, request)
 
@@ -132,255 +114,17 @@ export default async function drawRoutes(app: FastifyInstance) {
     const { id } = request.params as { id: string }
     const body = runDrawSchema.parse(request.body)
 
-    const draw = await prisma.draw.findUnique({
-      where: { id },
-      include: { game: true },
-    })
-
-    if (!draw) return reply.status(404).send({ success: false, error: 'Draw not found' })
-    if (draw.status !== 'SCHEDULED') {
-      return reply.status(400).send({ success: false, error: `Draw is already ${draw.status}` })
-    }
-
-    // Validate winning numbers
-    const game = draw.game
-    if (body.winningNumbers.length !== game.minNumbers) {
-      return reply.status(400).send({
-        success: false,
-        error: `Must provide exactly ${game.minNumbers} winning numbers`,
-      })
-    }
-
-    const uniqueNums = new Set(body.winningNumbers)
-    if (uniqueNums.size !== body.winningNumbers.length) {
-      return reply.status(400).send({ success: false, error: 'Winning numbers must be unique' })
-    }
-
-    if (body.winningNumbers.some((n) => n < 1 || n > game.numberPool)) {
-      return reply.status(400).send({
-        success: false,
-        error: `Numbers must be between 1 and ${game.numberPool}`,
-      })
-    }
-
-    if (game.hasPowerball && !body.powerball) {
-      return reply.status(400).send({ success: false, error: 'Powerball number required' })
-    }
-
-    // Update draw to in-progress
-    await prisma.draw.update({
-      where: { id },
-      data: {
-        status: 'IN_PROGRESS',
-        winningNumbers: body.winningNumbers,
-        supplementary: body.supplementary ?? undefined,
-        powerball: body.powerball ?? undefined,
-        drawnAt: new Date(),
-      },
-    })
-
-    await auditLog(
-      request.user.userId,
-      'DRAW_EXECUTED',
-      'Draw',
-      id,
-      undefined,
-      { winningNumbers: body.winningNumbers, powerball: body.powerball },
-      request
-    )
-
-    return reply.send({
-      success: true,
-      message: 'Draw executed. Run prize calculation to process winners.',
-      data: { drawId: id },
-    })
+    const result = await settleDraw(id, body as any)
+    await auditLog(request.user.userId, 'DRAW_EXECUTED', 'Draw', id, undefined, result, request)
+    return reply.send({ success: true, message: 'Draw settled; prizes credited automatically.', data: result })
   })
 
-  // POST /draws/:id/calculate-prizes - Calculate and award prizes
-  app.post('/:id/calculate-prizes', {
-    preHandler: [authenticate, requireAdmin],
-  }, async (request, reply) => {
+  // Retry is safe: settlement is serialized and uniquely recorded per draw.
+  app.post('/:id/calculate-prizes', { preHandler: [authenticate, requireAdmin] }, async (request, reply) => {
     const { id } = request.params as { id: string }
-
-    const draw = await prisma.draw.findUnique({
-      where: { id },
-      include: {
-        game: {
-          include: {
-            prizeDivisions: { orderBy: { divisionOrder: 'asc' } },
-          },
-        },
-        tickets: {
-          include: { numbers: true },
-        },
-      },
-    })
-
-    if (!draw) return reply.status(404).send({ success: false, error: 'Draw not found' })
-    if (draw.status !== 'IN_PROGRESS') {
-      return reply.status(400).send({ success: false, error: 'Draw must be in progress to calculate prizes' })
-    }
-
-    const winningNums = draw.winningNumbers as number[]
-    const suppNums = draw.supplementary as number[] | null
-    const pb = draw.powerball
-
-    let totalPrizes = 0
-    const winnersSummary: Record<string, number> = {}
-    const jackpotWinnerUserIds: string[] = []
-
-    // Pre-process ticket results before the atomic transaction
-    type TicketResult = {
-      ticketId: string
-      userId: string
-      status: 'WON' | 'LOST'
-      bestDivision: any
-      bestPrize: number
-      isJackpotWin: boolean
-    }
-    const ticketResults: TicketResult[] = []
-
-    for (const ticket of draw.tickets) {
-      if (ticket.status === 'CANCELLED') continue
-
-      let bestDivision: any = null
-      let bestPrize = 0
-      let isJackpotWin = false
-
-      for (const line of ticket.numbers) {
-        const nums = line.numbers as number[]
-        const matched = nums.filter((n) => winningNums.includes(n)).length
-        const matchedSupp = suppNums ? nums.filter((n) => suppNums.includes(n)).length : 0
-        const pbMatched = pb && line.powerball === pb
-
-        for (const div of draw.game.prizeDivisions) {
-          const numMatch = div.matchNumbers === matched
-          const suppMatch = div.matchSupp === 0 || matchedSupp >= div.matchSupp
-          const pbMatch = !div.matchPB || pbMatched
-
-          if (numMatch && suppMatch && pbMatch) {
-            const prizeAmt = div.isJackpot ? Number(draw.jackpotAmount) : Number(div.fixedPrize || 0)
-            if (prizeAmt > bestPrize) {
-              bestPrize = div.isJackpot ? 0 : prizeAmt // jackpot amount handled by service
-              bestDivision = div
-              isJackpotWin = div.isJackpot
-            }
-            break
-          }
-        }
-      }
-
-      if (bestDivision) {
-        ticketResults.push({ ticketId: ticket.id, userId: ticket.userId, status: 'WON', bestDivision, bestPrize, isJackpotWin })
-        if (isJackpotWin) jackpotWinnerUserIds.push(ticket.userId)
-      } else {
-        ticketResults.push({ ticketId: ticket.id, userId: ticket.userId, status: 'LOST', bestDivision: null, bestPrize: 0, isJackpotWin: false })
-      }
-    }
-
-    const totalSales = Number(draw.totalSales)
-
-    // All writes happen atomically
-    const jackpotResult = await prisma.$transaction(async (tx) => {
-      // 1. Jackpot rollover / payout
-      const jpResult = await processDrawJackpot(
-        tx,
-        draw.game.id,
-        draw.id,
-        draw.drawNumber,
-        totalSales,
-        jackpotWinnerUserIds,
-        draw.game.minJackpot
-      )
-
-      // 2. Non-jackpot winners & losers
-      for (const result of ticketResults) {
-        if (result.status === 'WON') {
-          const prize = result.isJackpotWin ? jpResult.perWinnerAmount : result.bestPrize
-
-          await tx.winningEntry.create({
-            data: { ticketId: result.ticketId, drawId: id, divisionName: result.bestDivision.divisionName, prizeAmount: prize },
-          })
-          await tx.ticket.update({
-            where: { id: result.ticketId },
-            data: { status: 'WON', prizeAmount: prize, prizeDivision: result.bestDivision.divisionName },
-          })
-
-          if (!result.isJackpotWin && prize > 0) {
-            const wallet = await tx.wallet.findUnique({ where: { userId: result.userId } })
-            if (wallet) {
-              await tx.wallet.update({
-                where: { id: wallet.id },
-                data: { balance: { increment: prize }, totalWon: { increment: prize } },
-              })
-              await tx.transaction.create({
-                data: {
-                  userId: result.userId,
-                  walletId: wallet.id,
-                  type: 'PRIZE_CREDIT',
-                  status: 'COMPLETED',
-                  amount: prize,
-                  balanceBefore: Number(wallet.balance),
-                  balanceAfter: Number(wallet.balance) + prize,
-                  reference: `WIN-${id}-${result.ticketId}`,
-                  description: `Winnings from Draw #${draw.drawNumber} — ${result.bestDivision.divisionName}`,
-                  drawId: id,
-                },
-              })
-              await tx.notification.create({
-                data: {
-                  userId: result.userId,
-                  title: '🏆 You\'ve won a prize!',
-                  message: `Congratulations! You won ${result.bestDivision.divisionName} (🪙${prize.toFixed(2)}) in Draw #${draw.drawNumber}!`,
-                  data: { ticketId: result.ticketId, drawId: id },
-                },
-              })
-            }
-            totalPrizes += prize
-          } else if (result.isJackpotWin) {
-            totalPrizes += jpResult.perWinnerAmount
-          }
-
-          winnersSummary[result.bestDivision.divisionName] = (winnersSummary[result.bestDivision.divisionName] || 0) + 1
-        } else {
-          await tx.ticket.update({ where: { id: result.ticketId }, data: { status: 'LOST' } })
-        }
-      }
-
-      // 3. Mark draw COMPLETED
-      await tx.draw.update({ where: { id }, data: { status: 'COMPLETED', totalPrizes, isVerified: false } })
-
-      return jpResult
-    })
-
-    await auditLog(
-      request.user.userId,
-      'PRIZES_CALCULATED',
-      'Draw',
-      id,
-      undefined,
-      { totalPrizes, winnersSummary, jackpot: jackpotResult },
-      request
-    )
-
-    return reply.send({
-      success: true,
-      message: 'Prize calculation complete',
-      data: {
-        totalPrizes,
-        winnersSummary,
-        jackpot: {
-          before: jackpotResult.jackpotBefore,
-          contribution: jackpotResult.ticketContrib,
-          paid: jackpotResult.jackpotPaid,
-          after: jackpotResult.jackpotAfter,
-          isRollover: jackpotResult.isRollover,
-          winnerCount: jackpotResult.winnerCount,
-        },
-      },
-    })
+    const result = await settleDraw(id)
+    return reply.send({ success: true, message: 'Draw settlement complete', data: result })
   })
-
 
   // POST /draws/:id/publish - Publish draw results
   app.post('/:id/publish', {

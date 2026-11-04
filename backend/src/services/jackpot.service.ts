@@ -90,22 +90,26 @@ export async function processDrawJackpot(
     jackpotPaid = perWinnerAmount * winnerCount
     jackpotAfter = Number(pool.baseJackpot) // reset to base
 
-    // Credit each winner's wallet
-    for (const userId of jackpotWinners) {
+    // Multiple winning tickets for one user are multiple shares. Aggregate the
+    // credit so the unique per-draw/user ledger reference is written once.
+    const shares = new Map<string, number>()
+    for (const userId of jackpotWinners) shares.set(userId, (shares.get(userId) || 0) + 1)
+    for (const [userId, shareCount] of [...shares.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+      const userPrize = perWinnerAmount * shareCount
       const wallet = await tx.wallet.findUnique({
         where: { userId },
         select: { id: true, balance: true },
       })
-      if (!wallet) continue
+      if (!wallet) throw new Error('Jackpot winner wallet not found')
 
       const balBefore = Number(wallet.balance)
-      const balAfter = balBefore + perWinnerAmount
+      const balAfter = balBefore + userPrize
 
       await tx.wallet.update({
         where: { id: wallet.id },
         data: {
-          balance: { increment: perWinnerAmount },
-          totalWon: { increment: perWinnerAmount },
+          balance: { increment: userPrize },
+          totalWon: { increment: userPrize },
         },
       })
 
@@ -116,7 +120,7 @@ export async function processDrawJackpot(
           walletId: wallet.id,
           type: 'PRIZE_CREDIT',
           status: 'COMPLETED',
-          amount: perWinnerAmount,
+          amount: userPrize,
           balanceBefore: balBefore,
           balanceAfter: balAfter,
           reference: `JACKPOT-WIN-${drawId}-${userId}`,
@@ -131,7 +135,7 @@ export async function processDrawJackpot(
         data: {
           userId,
           title: '🎉 JACKPOT WINNER!',
-          message: `You won the jackpot of 🪙${perWinnerAmount.toFixed(2)} in Draw #${drawNumber}!`,
+          message: `You won the jackpot of 🪙${userPrize.toFixed(2)} in Draw #${drawNumber}!`,
           data: { drawId, drawNumber, prize: perWinnerAmount },
         },
       })
