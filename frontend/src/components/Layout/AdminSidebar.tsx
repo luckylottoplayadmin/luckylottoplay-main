@@ -1,3 +1,4 @@
+import BrandLogo from '@/components/common/BrandLogo'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
 import { hasPermission } from '../../utils/rbac'
@@ -71,10 +72,7 @@ export default function AdminSidebar({ isOpen, onClose }: { isOpen?: boolean, on
     <aside className={`sidebar ${isOpen ? 'mobile-open' : ''}`} aria-label="Admin Navigation">
       <div style={{ padding: '0 20px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
         <Link to="/" style={{ display: 'flex', alignItems: 'center', gap: '8px' }} aria-label="Lucky Lotto Play Homepage">
-          <Zap size={18} style={{ color: 'var(--color-secondary)' }} />
-          <span style={{ fontFamily: 'var(--font-display)', fontWeight: 900, color: 'white', fontSize: '18px' }}>
-            Lucky <span style={{ color: 'var(--color-secondary)' }}>Lotto Play</span>
-          </span>
+          <BrandLogo />
         </Link>
         <div style={{ fontSize: '11px', color: '#94A3B8', fontWeight: 600, letterSpacing: '0.05em', marginTop: '4px' }}>
           ADMIN PANEL

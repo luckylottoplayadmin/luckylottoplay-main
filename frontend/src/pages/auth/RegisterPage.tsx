@@ -1,3 +1,4 @@
+import BrandLogo from '@/components/common/BrandLogo'
 import { useState, useEffect } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
@@ -5,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useMutation } from '@tanstack/react-query'
 import { authService } from '@/services/auth.service'
-import { Eye, EyeOff, User, Mail, Lock, Calendar, Zap, Globe, Phone } from 'lucide-react'
+import { Eye, EyeOff, User, Mail, Lock, Calendar, Globe, Phone } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const COUNTRIES = [
@@ -133,8 +134,7 @@ export default function RegisterPage() {
       <div style={{ width: '100%', maxWidth: '480px' }}>
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
           <Link to="/" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', color: 'white', fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 900 }}>
-            <Zap size={24} style={{ color: 'var(--color-secondary)' }} />
-            Lucky <span style={{ color: 'var(--color-secondary)' }}>Lotto Play</span>
+            <BrandLogo />
           </Link>
           <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: '14px', marginTop: '6px' }}>
             Create your free account

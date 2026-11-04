@@ -1,8 +1,9 @@
+import BrandLogo from '@/components/common/BrandLogo'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation } from '@tanstack/react-query'
 import { authService } from '@/services/auth.service'
-import { Mail, Zap, CheckCircle } from 'lucide-react'
+import { Mail, CheckCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 export default function ForgotPasswordPage() {
@@ -20,8 +21,7 @@ export default function ForgotPasswordPage() {
       <div style={{ width: '100%', maxWidth: '400px' }}>
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
           <Link to="/" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', color: 'white', fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 900 }} aria-label="Lucky Lotto Play Homepage">
-            <Zap size={24} style={{ color: 'var(--color-secondary)' }} />
-            Lucky <span style={{ color: 'var(--color-secondary)' }}>Lotto Play</span>
+            <BrandLogo />
           </Link>
           <h1 className="sr-only">Forgot Password</h1>
         </div>

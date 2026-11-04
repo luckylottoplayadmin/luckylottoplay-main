@@ -1,10 +1,11 @@
+import BrandLogo from '@/components/common/BrandLogo'
 import { useSearchParams, useNavigate, Link } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useMutation } from '@tanstack/react-query'
 import { authService } from '@/services/auth.service'
-import { Zap, Lock, Eye, EyeOff } from 'lucide-react'
+import { Lock, Eye, EyeOff } from 'lucide-react'
 import { useState } from 'react'
 import toast from 'react-hot-toast'
 
@@ -34,8 +35,7 @@ export default function ResetPasswordPage() {
       <div style={{ width: '100%', maxWidth: '400px' }}>
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
           <Link to="/" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', color: 'white', fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 900 }} aria-label="Lucky Lotto Play Homepage">
-            <Zap size={24} style={{ color: 'var(--color-secondary)' }} />
-            Lucky <span style={{ color: 'var(--color-secondary)' }}>Lotto Play</span>
+            <BrandLogo />
           </Link>
           <h1 className="sr-only">Reset Password</h1>
         </div>

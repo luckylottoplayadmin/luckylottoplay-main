@@ -1,5 +1,4 @@
 import { motion } from 'framer-motion'
-import GoldCoin from '../common/GoldCoin'
 
 interface LoadingScreenProps {
   message?: string
@@ -35,7 +34,7 @@ export default function LoadingScreen({ message = 'Loading Lucky Lotto Play Plat
           }}
         />
 
-        {/* Animated Brand Coin */}
+        {/* Animated brand logo */}
         <motion.div
           animate={{ rotateY: [0, 360] }}
           transition={{ repeat: Infinity, duration: 2, ease: 'linear' }}
@@ -47,7 +46,7 @@ export default function LoadingScreen({ message = 'Loading Lucky Lotto Play Plat
             justifyContent: 'center',
           }}
         >
-          <GoldCoin size={72} />
+          <img src="/lucky-lotto-logo.png" alt="" width={80} height={80} />
         </motion.div>
       </div>
 
