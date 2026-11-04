@@ -12,6 +12,7 @@ import cmsRoutes from './cms'
 import adminSupportRoutes from './adminSupport'
 import jackpotRoutes from './jackpot'
 import crypto from 'crypto'
+import { readImageUpload, uploadBannerImage, signKycRecord, redactKycRecord } from '../services/objectStorage'
 import { settleDraw, scheduleDraw } from '../services/drawSettlement'
 
 // MED-1: Explicit Zod whitelist for Banner fields — prevents mass-assignment
@@ -122,6 +123,11 @@ export default async function adminRoutes(app: FastifyInstance) {
   })
 
   // Register Sub-routers
+  app.post('/cms/uploads', { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } }, async (request, reply) => {
+    const url = await uploadBannerImage(await readImageUpload(request))
+    return reply.status(201).send({ success: true, data: { url } })
+  })
+
   app.register(cmsRoutes, { prefix: '/cms' })
   app.register(adminSupportRoutes, { prefix: '/support' })
   app.register(jackpotRoutes, { prefix: '/jackpot' })
@@ -233,7 +239,7 @@ export default async function adminRoutes(app: FastifyInstance) {
       where: { id },
       include: {
         wallet: true,
-        kycRecords: { orderBy: { submittedAt: 'desc' } },
+        kycRecords: { orderBy: { submittedAt: 'desc' }, select: { id: true, documentType: true, status: true, submittedAt: true, reviewedAt: true, reviewNotes: true } },
         tickets: {
           orderBy: { purchasedAt: 'desc' },
           take: 10,
@@ -382,7 +388,7 @@ export default async function adminRoutes(app: FastifyInstance) {
     ])
 
     const stats = { totalRequests, pendingReview, approvedToday, rejectedToday }
-    return reply.send({ success: true, data: records, pagination: { page: Number(page), limit: Number(limit), total, pages: Math.ceil(total / Number(limit)) }, stats })
+    return reply.send({ success: true, data: records.map(redactKycRecord), pagination: { page: Number(page), limit: Number(limit), total, pages: Math.ceil(total / Number(limit)) }, stats })
   })
 
   app.get('/kyc/:id', async (request, reply) => {
@@ -400,7 +406,10 @@ export default async function adminRoutes(app: FastifyInstance) {
       }
     })
     if (!record) return reply.status(404).send({ success: false, error: 'KYC Record not found' })
-    return reply.send({ success: true, data: record })
+    reply.header('Cache-Control', 'private, no-store')
+    const signed = await signKycRecord(record)
+    return reply.send({ success: true, data: { ...signed, user: { ...signed.user,
+      kycRecords: signed.user.kycRecords.map(redactKycRecord) } } })
   })
 
   app.patch('/kyc/:id/review', async (request, reply) => {

@@ -1,8 +1,21 @@
 // @vitest-environment jsdom
-import { afterEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { JSDOM } from 'jsdom'
 import { sanitizeSupportMessage } from '../src/lib/sanitizeSupportMessage'
 
-afterEach(() => { localStorage.clear(); vi.resetModules() })
+let storageBrowser: JSDOM
+
+beforeEach(() => {
+  // Keep browser storage independent of Node's native Web Storage globals.
+  storageBrowser = new JSDOM('', { url: 'https://app.example.test' })
+  vi.stubGlobal('localStorage', storageBrowser.window.localStorage)
+})
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+  storageBrowser.window.close()
+  vi.resetModules()
+})
 
 it('preserves editor formatting while stripping executable HTML and dangerous URLs', () => {
   const html = sanitizeSupportMessage('<p><strong>Hello</strong><img src=x onerror=alert(1)></p><script>alert(1)</script><a href="javascript:alert(1)" onclick="alert(2)">link</a><iframe src="https://evil.example"></iframe>')

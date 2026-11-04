@@ -98,9 +98,5 @@ services:
         sync: false
       - key: VITE_WS_URL
         sync: false
-      - key: VITE_SUPABASE_URL
-        sync: false
-      - key: VITE_SUPABASE_ANON_KEY
-        sync: false
       - key: VITE_PAYPAL_CLIENT_ID
         sync: false

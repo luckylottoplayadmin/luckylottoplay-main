@@ -1,16 +1,15 @@
 import React, { useState } from 'react';
-import { supabase } from '@/lib/supabase';
+import { uploadBanner } from '@/services/storage.service';
 import { UploadCloud, Link as LinkIcon, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import imageCompression from 'browser-image-compression';
 
-interface SupabaseImageUploadProps {
+interface BannerImageUploadProps {
   value: string;
   onChange: (url: string) => void;
-  folderPath: string;
 }
 
-export default function SupabaseImageUpload({ value, onChange, folderPath }: SupabaseImageUploadProps) {
+export default function BannerImageUpload({ value, onChange }: BannerImageUploadProps) {
   const [isUploading, setIsUploading] = useState(false);
   const [mode, setMode] = useState<'upload' | 'url'>('upload');
 
@@ -28,25 +27,12 @@ export default function SupabaseImageUpload({ value, onChange, folderPath }: Sup
       };
       const compressedFile = await imageCompression(file, options);
       
-      const ext = compressedFile.name.split('.').pop()?.replace(/[^a-zA-Z0-9]/g, '') || 'jpg';
-      const fileName = `${folderPath}/${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${ext}`;
-      
-      const { data, error } = await supabase.storage
-        .from(import.meta.env.VITE_SUPABASE_BUCKET_NAME || 'uploads')
-        .upload(fileName, compressedFile, { upsert: true });
-
-      if (error) {
-        throw error;
-      }
-
-      const { data: { publicUrl } } = supabase.storage
-        .from(import.meta.env.VITE_SUPABASE_BUCKET_NAME || 'uploads')
-        .getPublicUrl(fileName);
+      const publicUrl = await uploadBanner(compressedFile);
 
       onChange(publicUrl);
       toast.success('Image uploaded successfully');
     } catch (error: any) {
-      console.error('Supabase upload error:', error);
+      console.error('Banner upload failed');
       toast.error(error.message || 'Failed to upload image');
     } finally {
       setIsUploading(false);
@@ -78,7 +64,7 @@ export default function SupabaseImageUpload({ value, onChange, folderPath }: Sup
         <div style={{ position: 'relative' }}>
           <input 
             type="file" 
-            accept="image/*"
+            accept="image/jpeg,image/png,image/webp"
             onChange={handleFileChange}
             className="form-input"
             disabled={isUploading}

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import api from '../../services/api'
-import SupabaseImageUpload from '../../components/UI/SupabaseImageUpload'
+import BannerImageUpload from '../../components/UI/BannerImageUpload'
 import { X, Save, Image as ImageIcon, Link, LayoutTemplate, MapPin, Calendar, Clock, Crosshair } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -12,7 +12,7 @@ interface Props {
 
 export function BannerEditorDrawer({ bannerId, onClose }: Props) {
   const queryClient = useQueryClient()
-  
+
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -83,9 +83,9 @@ export function BannerEditorDrawer({ bannerId, onClose }: Props) {
   return (
     <>
       <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1000 }} onClick={onClose} />
-      
+
       <div style={{ position: 'fixed', right: 0, top: 0, bottom: 0, width: '100%', maxWidth: '800px', backgroundColor: 'var(--bg-primary)', zIndex: 1001, boxShadow: '-4px 0 24px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column', animation: 'slideInRight 0.3s ease-out' }}>
-        
+
         {/* Header */}
         <div style={{ padding: 'var(--space-md) var(--space-xl)', borderBottom: '1px solid var(--border-color)', backgroundColor: 'var(--bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
@@ -106,15 +106,15 @@ export function BannerEditorDrawer({ bannerId, onClose }: Props) {
 
         {/* Content */}
         <div style={{ flex: 1, overflowY: 'auto', padding: 'var(--space-xl)', display: 'flex', flexDirection: 'column', gap: 'var(--space-xl)' }}>
-          
+
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-xl)' }}>
-            
+
             {/* Left Col: Creative & Details */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>
-              
+
               <div className="card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <h3 style={{ margin: '0 0 8px 0', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}><LayoutTemplate size={16}/> Banner Details</h3>
-                
+
                 <div className="form-group">
                   <label className="form-label">Internal Name / Title</label>
                   <input type="text" className="form-input" placeholder="e.g. Summer Jackpot Promo" value={formData.title} onChange={e => setFormData(p => ({...p, title: e.target.value}))} />
@@ -134,28 +134,26 @@ export function BannerEditorDrawer({ bannerId, onClose }: Props) {
 
               <div className="card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <h3 style={{ margin: '0 0 8px 0', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}><ImageIcon size={16}/> Media Assets</h3>
-                
+
                 <div className="form-group">
                   <label className="form-label">Desktop Image URL</label>
-                  <SupabaseImageUpload 
-                    value={formData.imageUrl} 
-                    onChange={url => setFormData(p => ({...p, imageUrl: url}))} 
-                    folderPath="banners"
+                  <BannerImageUpload
+                    value={formData.imageUrl}
+                    onChange={url => setFormData(p => ({...p, imageUrl: url}))}
                   />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Mobile Image URL (Optional)</label>
-                  <SupabaseImageUpload 
-                    value={formData.mobileUrl} 
-                    onChange={url => setFormData(p => ({...p, mobileUrl: url}))} 
-                    folderPath="banners"
+                  <BannerImageUpload
+                    value={formData.mobileUrl}
+                    onChange={url => setFormData(p => ({...p, mobileUrl: url}))}
                   />
                 </div>
                 <div className="form-group">
                   <label className="form-label">Background Color (Fallback)</label>
                   <input type="color" className="form-input" style={{ padding: '0', height: '44px' }} value={formData.backgroundColor || '#000000'} onChange={e => setFormData(p => ({...p, backgroundColor: e.target.value}))} />
                 </div>
-                
+
                 {formData.imageUrl && (
                   <div style={{ marginTop: '8px', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', overflow: 'hidden', backgroundColor: formData.backgroundColor || 'var(--bg-overlay)', padding: '16px', display: 'flex', justifyContent: 'center' }}>
                     <img src={formData.imageUrl} alt="Preview" style={{ maxWidth: '100%', maxHeight: '150px', objectFit: 'contain' }} onError={(e) => (e.currentTarget.style.display = 'none')} />
@@ -167,10 +165,10 @@ export function BannerEditorDrawer({ bannerId, onClose }: Props) {
 
             {/* Right Col: Placement & Targeting */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-lg)' }}>
-              
+
               <div className="card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <h3 style={{ margin: '0 0 8px 0', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}><MapPin size={16}/> Placement Options</h3>
-                
+
                 <div className="form-group">
                   <label className="form-label">Zone / Position</label>
                   <select className="form-select" value={formData.position} onChange={e => setFormData(p => ({...p, position: e.target.value}))}>
@@ -182,7 +180,7 @@ export function BannerEditorDrawer({ bannerId, onClose }: Props) {
                     <option value="RESULTS">Draw Results Banner</option>
                   </select>
                 </div>
-                
+
                 <div className="form-group">
                   <label className="form-label">Sort Order (Lower = First)</label>
                   <input type="number" className="form-input" value={formData.sortOrder} onChange={e => setFormData(p => ({...p, sortOrder: Number(e.target.value)}))} />
@@ -191,7 +189,7 @@ export function BannerEditorDrawer({ bannerId, onClose }: Props) {
 
               <div className="card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <h3 style={{ margin: '0 0 8px 0', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px' }}><Calendar size={16}/> Scheduling</h3>
-                
+
                 <div className="form-group">
                   <label className="form-label">Start Date & Time (Optional)</label>
                   <input type="datetime-local" className="form-input" value={formData.startDate} onChange={e => setFormData(p => ({...p, startDate: e.target.value}))} />
@@ -206,7 +204,7 @@ export function BannerEditorDrawer({ bannerId, onClose }: Props) {
               <div className="card" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px', border: '1px dashed var(--primary-color)' }}>
                 <h3 style={{ margin: '0 0 8px 0', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--primary-color)' }}><Crosshair size={16}/> Advanced Targeting (A/B)</h3>
                 <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Configure advanced segment rules for this campaign.</div>
-                
+
                 <div className="form-group">
                   <label className="form-label">Target Audience</label>
                   <select className="form-select" disabled>

@@ -55,7 +55,7 @@ The platform seeds with several realistic, globally popular lottery formats out 
 - **Styling:** Tailwind CSS.
 - **Routing:** React Router v6.
 - **Forms & Validation:** React Hook Form + Zod resolvers.
-- **Backend-as-a-Service (BaaS):** Supabase (for real-time features and selective client integrations).
+- **File Storage:** Neon Object Storage through the authenticated backend API. KYC is private; banners allow public reads.
 - **UI & Analytics:** Recharts (admin charts), Framer Motion (animations), Lucide Icons.
 
 ---
@@ -76,7 +76,7 @@ lottery-platform/
 │   ├── src/
 │   │   ├── components/       # Reusable components & Admin Sidebar/Drawers
 │   │   ├── pages/            # Public & Admin dashboards (e.g. MerchantDashboard.tsx)
-│   │   ├── lib/              # Utilities (e.g. supabase.ts)
+│   │   ├── lib/              # Shared utilities
 │   │   └── services/         # API fetch wrappers
 ├── docker/                   # Docker environment (Postgres init scripts)
 ├── nginx/                    # Nginx reverse proxy configs for production
@@ -157,8 +157,6 @@ npm install
 **Environment Variables (`frontend/.env.local`):**
 ```env
 VITE_API_URL=http://localhost:3000
-VITE_SUPABASE_URL="https://your-project.supabase.co"
-VITE_SUPABASE_ANON_KEY="your-anon-key"
 ```
 
 **Start the React Development Server:**
@@ -250,3 +248,11 @@ npm run db:migrate && npm start
 - Review external API/WebSocket origins when tightening the Render static site's `connect-src` CSP. The supplied policy permits HTTPS/WSS integrations while preventing inline scripts, embedding, and object execution.
 
 Run `npm test`, `npm run build`, and `npm run build --prefix frontend` before deployment. Security audit results and remediation details are in `SECURITY_REVIEW.md` and `security-audit/`.
+
+### Neon file storage
+
+Set `AWS_ENDPOINT_URL_S3`, `AWS_REGION`, `AWS_ACCESS_KEY_ID`, and `AWS_SECRET_ACCESS_KEY` on the backend only. Create `lottery-kyc` with private access and `lottery-banners` with public-read access. Bucket names can be overridden with `NEON_KYC_BUCKET` and `NEON_BANNER_BUCKET`.
+
+Images upload through authenticated API routes, with MIME/decoded-image validation, a 5 MB input limit and metadata removal. CMS:Create permission is required for banner uploads. Only KYC:View reviewers receive five-minute signed document links. The browser receives no storage credentials.
+
+Existing legacy bucket files are intentionally not migrated. Historical KYC statuses remain intact; old document URLs are never served. New submissions use Neon exclusively.

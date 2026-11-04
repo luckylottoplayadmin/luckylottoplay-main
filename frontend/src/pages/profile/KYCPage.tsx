@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useAuthStore } from '@/store/authStore'
 import { ShieldCheck, UploadCloud, FileText, CheckCircle, AlertTriangle } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { supabase } from '@/lib/supabase'
+import { uploadKycDocument } from '@/services/storage.service'
 import imageCompression from 'browser-image-compression'
 import { useEffect } from 'react'
 
@@ -84,27 +84,13 @@ export default function KYCPage() {
 
     setIsUploading(true)
     try {
-      const bucketName = import.meta.env.VITE_SUPABASE_BUCKET_NAME || 'kyc'
       const compressionOptions = { maxSizeMB: 0.5, maxWidthOrHeight: 1920, useWebWorker: true }
-      
-      // Compress and upload front file
       const compressedFront = await imageCompression(frontFile, compressionOptions)
-      const frontExt = compressedFront.name.split('.').pop()?.replace(/[^a-zA-Z0-9]/g, '') || 'jpg'
-      const frontName = `${user?.id || 'user'}/${Date.now()}_front_${Math.random().toString(36).substring(2, 8)}.${frontExt}`
-      const { error: frontError } = await supabase.storage.from(bucketName).upload(frontName, compressedFront, { upsert: true })
-      if (frontError) throw frontError
-      const { data: { publicUrl: frontUrl } } = supabase.storage.from(bucketName).getPublicUrl(frontName)
-
-      // Compress and upload back file (if applicable)
+      const frontUrl = await uploadKycDocument(compressedFront)
       let backUrl = ''
       if (backFile) {
         const compressedBack = await imageCompression(backFile, compressionOptions)
-        const backExt = compressedBack.name.split('.').pop()?.replace(/[^a-zA-Z0-9]/g, '') || 'jpg'
-        const backName = `${user?.id || 'user'}/${Date.now()}_back_${Math.random().toString(36).substring(2, 8)}.${backExt}`
-        const { error: backError } = await supabase.storage.from(bucketName).upload(backName, compressedBack, { upsert: true })
-        if (backError) throw backError
-        const { data: { publicUrl: bUrl } } = supabase.storage.from(bucketName).getPublicUrl(backName)
-        backUrl = bUrl
+        backUrl = await uploadKycDocument(compressedBack)
       }
 
       // Import api inside component or ensure it's imported at top
@@ -168,14 +154,14 @@ export default function KYCPage() {
                 <UploadCloud size={48} style={{ color: 'var(--color-primary)', margin: '0 auto 16px' }} />
                 <h3 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '8px' }}>Upload Front of Document</h3>
                 <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '16px' }}>
-                  {frontFile ? frontFile.name : 'JPEG, PNG or PDF (Max 5MB)'}
+                  {frontFile ? frontFile.name : 'JPEG, PNG or WebP (Max 5MB)'}
                 </p>
                 <input 
                   type="file" 
                   id="frontFile" 
                   style={{ display: 'none' }} 
                   onChange={(e) => setFrontFile(e.target.files?.[0] || null)}
-                  accept="image/jpeg,image/png,application/pdf"
+                  accept="image/jpeg,image/png,image/webp"
                 />
                 <label htmlFor="frontFile" className="btn btn-outline btn-sm" style={{ cursor: 'pointer' }}>
                   {frontFile ? 'Change File' : 'Select File'}
@@ -187,14 +173,14 @@ export default function KYCPage() {
                   <UploadCloud size={48} style={{ color: 'var(--color-primary)', margin: '0 auto 16px' }} />
                   <h3 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '8px' }}>Upload Back of Document</h3>
                   <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '16px' }}>
-                    {backFile ? backFile.name : 'JPEG, PNG or PDF (Max 5MB)'}
+                    {backFile ? backFile.name : 'JPEG, PNG or WebP (Max 5MB)'}
                   </p>
                   <input 
                     type="file" 
                     id="backFile" 
                     style={{ display: 'none' }} 
                     onChange={(e) => setBackFile(e.target.files?.[0] || null)}
-                    accept="image/jpeg,image/png,application/pdf"
+                    accept="image/jpeg,image/png,image/webp"
                   />
                   <label htmlFor="backFile" className="btn btn-outline btn-sm" style={{ cursor: 'pointer' }}>
                     {backFile ? 'Change File' : 'Select File'}

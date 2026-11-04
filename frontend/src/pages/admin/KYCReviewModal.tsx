@@ -17,6 +17,7 @@ export function KYCReviewModal({ recordId, onClose }: Props) {
   const queryClient = useQueryClient()
   const [zoomLevel, setZoomLevel] = useState(1)
   const [rotate, setRotate] = useState(0)
+  const [documentSide, setDocumentSide] = useState<'front' | 'back'>('front')
 
   const { data: record, isLoading } = useQuery({
     queryKey: ['admin', 'kyc', recordId],
@@ -25,6 +26,9 @@ export function KYCReviewModal({ recordId, onClose }: Props) {
       return res.data.data
     },
     enabled: !!recordId,
+    refetchInterval: 240_000,
+    staleTime: 0,
+    gcTime: 0,
   })
 
   const reviewMutation = useMutation({
@@ -55,7 +59,7 @@ export function KYCReviewModal({ recordId, onClose }: Props) {
   return (
     <div style={{ position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'var(--space-md)' }}>
       <div className="card" style={{ width: '100%', maxWidth: '1200px', height: '90vh', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--bg-primary)' }}>
-        
+
         {/* Header */}
         <div className="kyc-modal-header">
           <div className="kyc-modal-header-info">
@@ -75,32 +79,37 @@ export function KYCReviewModal({ recordId, onClose }: Props) {
 
         {/* Content Area */}
         <div className="kyc-modal-content">
-          
+
           {/* Left Panel: Document Viewer */}
           <div className="kyc-modal-panel-left">
             <div style={{ padding: '8px var(--space-md)', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'var(--bg-primary)' }}>
               <span style={{ fontWeight: 600 }}>{record?.documentType}</span>
+              {record?.selfieUrl && <div style={{ display: 'flex', gap: '4px' }}>
+                <button className="btn btn-outline btn-sm" onClick={() => setDocumentSide('front')} aria-pressed={documentSide === 'front'}>Front</button>
+                <button className="btn btn-outline btn-sm" onClick={() => setDocumentSide('back')} aria-pressed={documentSide === 'back'}>Back</button>
+              </div>}
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button className="btn btn-outline" style={{ padding: '4px 8px' }} onClick={() => setZoomLevel(z => z + 0.2)}><ZoomIn size={16}/></button>
                 <button className="btn btn-outline" style={{ padding: '4px 8px' }} onClick={() => setZoomLevel(z => Math.max(0.2, z - 0.2))}><ZoomOut size={16}/></button>
                 <button className="btn btn-outline" style={{ padding: '4px 8px' }} onClick={() => setRotate(r => r + 90)}><RefreshCw size={16}/></button>
               </div>
             </div>
-            
+
             <div style={{ flex: 1, overflow: 'auto', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               {isLoading ? <div className="loading-spinner"></div> : (
                 record?.documentUrl ? (
                   // Render the actual uploaded image
                   <div style={{ transform: `scale(${zoomLevel}) rotate(${rotate}deg)`, transition: 'transform 0.2s', width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <img 
-                      src={record.documentUrl} 
-                      alt="KYC Document" 
-                      style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', boxShadow: '0 4px 12px rgba(0,0,0,0.5)', borderRadius: '8px' }} 
+                    <img
+                      src={documentSide === 'back' && record.selfieUrl ? record.selfieUrl : record.documentUrl}
+                      referrerPolicy="no-referrer"
+                      alt="KYC Document"
+                      style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', boxShadow: '0 4px 12px rgba(0,0,0,0.5)', borderRadius: '8px' }}
                     />
                     <div style={{ position: 'absolute', inset: 0, backgroundImage: 'url("data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' opacity=\'0.05\'><text x=\'20\' y=\'50\' font-size=\'40\' transform=\'rotate(-45)\'>CONFIDENTIAL</text></svg>")', pointerEvents: 'none' }}></div>
                   </div>
                 ) : (
-                  <div style={{ color: 'var(--text-secondary)' }}>No document found</div>
+                  <div style={{ color: 'var(--text-secondary)' }}>Document unavailable. Ask the customer to submit a new document for review.</div>
                 )
               )}
             </div>
@@ -109,7 +118,7 @@ export function KYCReviewModal({ recordId, onClose }: Props) {
           {/* Right Panel: Analysis & Actions */}
           <div className="kyc-modal-panel-right">
             <div style={{ padding: 'var(--space-lg)', flex: 1 }}>
-              
+
               {/* Simulated Fraud Engine */}
               <h3 style={{ marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Search size={18} /> AI Risk Analysis
@@ -168,10 +177,10 @@ export function KYCReviewModal({ recordId, onClose }: Props) {
 
               {/* Internal Notes */}
               <h3>Review Notes</h3>
-              <textarea 
-                id="reviewNotes" 
-                className="form-textarea" 
-                placeholder="Add internal notes (visible to user on rejection)..." 
+              <textarea
+                id="reviewNotes"
+                className="form-textarea"
+                placeholder="Add internal notes (visible to user on rejection)..."
                 style={{ width: '100%', minHeight: '80px', borderRadius: '8px', padding: '12px' }}
                 defaultValue={record?.reviewNotes || ''}
               ></textarea>

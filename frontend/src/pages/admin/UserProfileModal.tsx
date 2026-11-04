@@ -277,7 +277,14 @@ export function UserProfileModal({ userId, onClose }: Props) {
                         <button 
                           className="btn btn-outline" 
                           style={{ padding: '4px 12px', fontSize: '0.8rem' }}
-                          onClick={() => setViewerDoc(k.documentUrl || 'mock-doc.jpg')}
+                          onClick={async () => {
+                            try {
+                              const response = await api.get(`/admin/kyc/${k.id}`)
+                              setViewerDoc(response.data.data.documentUrl)
+                            } catch (error: any) {
+                              toast.error(error.response?.data?.error || 'Unable to open KYC document')
+                            }
+                          }}
                         >
                           View Document Attachment
                         </button>

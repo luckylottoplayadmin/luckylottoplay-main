@@ -2,26 +2,12 @@ import { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { prisma } from '../server'
 import { authenticate, auditLog } from '../middleware/auth'
-
-// HIGH-11: Safe URL validator for KYC documents
-const safeHttpsUrl = z.string().url().refine(
-  (url) => {
-    try {
-      const parsed = new URL(url)
-      if (parsed.protocol !== 'https:') return false
-      const host = parsed.hostname
-      // Block internal/private IPs
-      if (/^(127\.|10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|169\.254\.|::1|localhost)/i.test(host)) return false
-      return true
-    } catch { return false }
-  },
-  { message: 'URL must be a secure HTTPS URL pointing to an external host' }
-)
+import { readImageUpload, uploadKycImage, validateOwnedKycImage } from '../services/objectStorage'
 
 const kycSchema = z.object({
   documentType: z.string().min(1).max(50),
-  documentUrl: safeHttpsUrl,
-  selfieUrl: safeHttpsUrl.optional().nullable().or(z.literal('')),
+  documentUrl: z.string().min(1).max(500),
+  selfieUrl: z.string().max(500).optional().nullable(),
 })
 
 // HIGH-02: Whitelist notification preference fields
@@ -131,23 +117,34 @@ export default async function userRoutes(app: FastifyInstance) {
     return reply.send({ success: true, data: devices })
   })
 
-  // Submit KYC document — HIGH-11: validates URL safety
+  app.post('/me/kyc/upload', { preHandler: authenticate,
+    config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (request, reply) => {
+    const reference = await uploadKycImage(request.user.userId, await readImageUpload(request))
+    return reply.status(201).send({ success: true, data: { reference } })
+  })
+
+  // Only accept existing private objects uploaded for this account.
   app.post('/me/kyc', { preHandler: authenticate }, async (request, reply) => {
     const { documentType, documentUrl, selfieUrl } = kycSchema.parse(request.body)
 
-    await prisma.kYCRecord.create({
-      data: {
-        userId: request.user.userId,
-        documentType,
-        documentUrl,
-        selfieUrl: selfieUrl || null,
-        status: 'PENDING',
-      },
-    })
+    await validateOwnedKycImage(documentUrl, request.user.userId)
+    if (selfieUrl) await validateOwnedKycImage(selfieUrl, request.user.userId)
 
-    await prisma.user.update({
-      where: { id: request.user.userId },
-      data: { kycStatus: 'PENDING' },
+    await prisma.$transaction(async tx => {
+      await tx.kYCRecord.create({
+        data: {
+          userId: request.user.userId,
+          documentType,
+          documentUrl,
+          selfieUrl: selfieUrl || null,
+          status: 'PENDING',
+        },
+      })
+
+      await tx.user.update({
+        where: { id: request.user.userId },
+        data: { kycStatus: 'PENDING' },
+      })
     })
 
     return reply.status(201).send({ success: true, message: 'KYC documents submitted for review' })
