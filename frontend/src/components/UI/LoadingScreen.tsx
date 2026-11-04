@@ -46,7 +46,7 @@ export default function LoadingScreen({ message = 'Loading Lucky Lotto Play Plat
             justifyContent: 'center',
           }}
         >
-          <img src="/lucky-lotto-logo.png" alt="" width={80} height={80} />
+          <img src="/lucky-lotto-ball.png" alt="" width={80} height={80} />
         </motion.div>
       </div>
 

@@ -1,0 +1,23 @@
+.brand-logo {
+  display: block;
+  width: 200px;
+  height: auto;
+  max-width: 100%;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.header .brand-logo {
+  width: 144px;
+  max-height: calc(var(--header-height) - 8px);
+}
+
+.sidebar .brand-logo {
+  width: 176px;
+}
+
+@media (max-width: 480px) {
+  .header .brand-logo {
+    width: 112px;
+  }
+}
