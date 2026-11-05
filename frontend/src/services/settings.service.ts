@@ -67,7 +67,10 @@ export const settingsService = {
   async getSettings<K extends keyof SystemSettings>(category: K) {
     try {
       const response = await api.get<{ success: boolean; data: SystemSettings[K] }>(`/settings/${category}`);
-      const serverData = response.data?.data || {};
+      const serverData = response.data?.data;
+      if (!serverData) {
+        throw new Error(`Invalid settings payload received for ${category}`);
+      }
       const defaultData = DEFAULT_SETTINGS[category];
 
       return {
@@ -76,7 +79,9 @@ export const settingsService = {
       };
     } catch (error) {
       console.error(`Failed to load settings for ${category}:`, error);
-      return { success: true, data: DEFAULT_SETTINGS[category] as SystemSettings[K] };
+      // F-02 Remediation: Distinguish loaded settings from fallback values;
+      // Never mask errors with success: true and hardcoded security defaults.
+      throw error;
     }
   },
 

@@ -1,0 +1,10 @@
+# Lucky Lotto Play - robots.txt
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /wallet/
+Disallow: /profile/
+Disallow: /tickets/
+Disallow: /notifications/
+
+Sitemap: https://luckylottoplay.live/sitemap.xml
