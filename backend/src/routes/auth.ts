@@ -331,19 +331,21 @@ export default async function authRoutes(app: FastifyInstance) {
 
     await auditLog(user.id, 'LOGIN', 'User', user.id, undefined, undefined, request)
 
-    // MED-01: Set refresh token as HttpOnly cookie — never expose in response body.
-    // Access token is returned in the body and stored in memory only (not localStorage).
-    // Cross-site cookie settings for production/Render (SameSite=None; Secure)
+    // MED-01 & F-01: Set refresh token as Secure, HttpOnly cookie with __Host- prefix.
+    // Host-only cookie: No Domain attribute, Path=/, Secure, HttpOnly, SameSite=Lax.
     const isProd = process.env.NODE_ENV === 'production'
-    const cookieOptions = [
-      `refreshToken=${refreshToken}`,
+    const cookieFlags = [
       'HttpOnly',
-      isProd ? 'SameSite=None' : 'SameSite=Lax',
+      'SameSite=Lax',
       isProd ? 'Secure' : '',
       'Path=/',
       `Max-Age=${30 * 24 * 60 * 60}`, // 30 days
     ].filter(Boolean).join('; ')
-    reply.header('Set-Cookie', cookieOptions)
+
+    reply.header('Set-Cookie', [
+      `__Host-refresh=${refreshToken}; ${cookieFlags}`,
+      `refreshToken=${refreshToken}; ${cookieFlags}`,
+    ])
 
     return reply.send({
       success: true,
@@ -401,14 +403,15 @@ export default async function authRoutes(app: FastifyInstance) {
 
   // POST /auth/refresh
   app.post('/refresh', async (request, reply) => {
-    // Read refresh token from HttpOnly cookie, request body, or header
+    // Read refresh token from __Host-refresh or refreshToken cookie, request body, or header
     const cookieHeader = request.headers['cookie'] || ''
-    const cookieToken = cookieHeader
-      .split(';')
-      .map((c: string) => c.trim())
-      .find((c: string) => c.startsWith('refreshToken='))
-      ?.split('=')[1]
-
+    const cookieMap = Object.fromEntries(
+      cookieHeader.split(';').map((c: string) => {
+        const parts = c.trim().split('=')
+        return [parts[0], parts.slice(1).join('=')]
+      })
+    )
+    const cookieToken = cookieMap['__Host-refresh'] || cookieMap['refreshToken']
     const bodyToken = (request.body as any)?.refreshToken
     const headerToken = request.headers['x-refresh-token'] as string | undefined
 
@@ -432,6 +435,10 @@ export default async function authRoutes(app: FastifyInstance) {
       return reply.status(403).send({ success: false, error: 'Account suspended' })
     }
 
+    // Refresh token rotation: generate new refresh token on every renewal
+    const newRefreshToken = randomBytes(64).toString('hex')
+    const newRefreshTokenHash = hashToken(newRefreshToken)
+
     const newAccessToken = app.jwt.sign({
       userId: session.user.id,
       role: session.user.role,
@@ -440,11 +447,33 @@ export default async function authRoutes(app: FastifyInstance) {
 
     await prisma.session.update({
       where: { id: session.id },
-      // HIGH-2: Update lastUsedAt only; no plaintext token stored.
-      data: { lastUsedAt: new Date() },
+      data: {
+        refreshTokenHash: newRefreshTokenHash,
+        lastUsedAt: new Date(),
+      },
     })
 
-    return reply.send({ success: true, data: { accessToken: newAccessToken, refreshToken } })
+    const isProd = process.env.NODE_ENV === 'production'
+    const cookieFlags = [
+      'HttpOnly',
+      'SameSite=Lax',
+      isProd ? 'Secure' : '',
+      'Path=/',
+      `Max-Age=${30 * 24 * 60 * 60}`,
+    ].filter(Boolean).join('; ')
+
+    reply.header('Set-Cookie', [
+      `__Host-refresh=${newRefreshToken}; ${cookieFlags}`,
+      `refreshToken=${newRefreshToken}; ${cookieFlags}`,
+    ])
+
+    return reply.send({
+      success: true,
+      data: {
+        accessToken: newAccessToken,
+        refreshToken: newRefreshToken,
+      },
+    })
   })
 
   // POST /auth/logout
@@ -454,17 +483,19 @@ export default async function authRoutes(app: FastifyInstance) {
       data: { isActive: false },
     })
 
-    // MED-01: Clear the HttpOnly refresh token cookie
     const isProd = process.env.NODE_ENV === 'production'
-    const clearCookieOptions = [
-      'refreshToken=',
+    const clearFlags = [
       'HttpOnly',
-      isProd ? 'SameSite=None' : 'SameSite=Lax',
+      'SameSite=Lax',
       isProd ? 'Secure' : '',
       'Path=/',
       'Max-Age=0',
     ].filter(Boolean).join('; ')
-    reply.header('Set-Cookie', clearCookieOptions)
+
+    reply.header('Set-Cookie', [
+      `__Host-refresh=; ${clearFlags}`,
+      `refreshToken=; ${clearFlags}`,
+    ])
 
     return reply.send({ success: true, message: 'Logged out successfully' })
   })
