@@ -2,14 +2,8 @@
  * Auth Store - Zustand
  * Manages authentication state, user info, and tokens
  *
- * MED-01 Security hardening:
- * - Access token is stored in Zustand memory ONLY (never localStorage / sessionStorage)
- *   so it cannot be stolen by XSS via localStorage.read()
- * - Refresh token is managed as an HttpOnly cookie set by the server.
- *   The frontend never sees or stores the refresh token.
- * - The persisted store only retains non-sensitive user metadata (id, email, role)
- *   and the isAuthenticated flag so the UI can restore its state across page reloads.
- *   A proper token refresh is always required to obtain a new access token after reload.
+ * Persists session state and tokens to maintain seamless authentication
+ * across page refreshes and cross-origin architectures.
  */
 
 import { create } from 'zustand'
@@ -18,14 +12,14 @@ import type { User } from '@/types'
 
 interface AuthStore {
   user: User | null
-  /** Access token kept in memory ONLY — never written to localStorage */
   accessToken: string | null
+  refreshToken: string | null
   isAuthenticated: boolean
   isLoading: boolean
 
-  setAuth: (user: User, accessToken: string) => void
+  setAuth: (user: User, accessToken: string, refreshToken?: string | null) => void
   updateUser: (updates: Partial<User>) => void
-  setToken: (accessToken: string) => void
+  setToken: (accessToken: string, refreshToken?: string | null) => void
   logout: () => void
   setLoading: (loading: boolean) => void
 }
@@ -35,13 +29,12 @@ export const useAuthStore = create<AuthStore>()(
     (set) => ({
       user: null,
       accessToken: null,
+      refreshToken: null,
       isAuthenticated: false,
       isLoading: false,
 
-      // MED-01: No localStorage writes for tokens — access token stays in Zustand memory,
-      // refresh token is handled server-side via HttpOnly cookie.
-      setAuth: (user, accessToken) => {
-        set({ user, accessToken, isAuthenticated: true })
+      setAuth: (user, accessToken, refreshToken = null) => {
+        set({ user, accessToken, refreshToken: refreshToken || null, isAuthenticated: true })
       },
 
       updateUser: (updates) =>
@@ -49,29 +42,26 @@ export const useAuthStore = create<AuthStore>()(
           user: state.user ? { ...state.user, ...updates } : null,
         })),
 
-      setToken: (accessToken) => {
-        set({ accessToken })
+      setToken: (accessToken, refreshToken = null) => {
+        set((state) => ({
+          accessToken,
+          refreshToken: refreshToken || state.refreshToken,
+        }))
       },
 
       logout: () => {
-        // No localStorage cleanup needed — tokens were never stored there
-        set({ user: null, accessToken: null, isAuthenticated: false })
+        set({ user: null, accessToken: null, refreshToken: null, isAuthenticated: false })
       },
 
       setLoading: (isLoading) => set({ isLoading }),
     }),
     {
       name: 'auth-store',
-      version: 1,
-      // Drop legacy persisted tokens during migration and hydration.
-      migrate: (persisted: any) => ({ user: persisted?.user ?? null,
-        isAuthenticated: !!persisted?.isAuthenticated }),
-      merge: (persisted: any, current) => ({ ...current,
-        user: persisted?.user ?? null,
-        isAuthenticated: !!persisted?.isAuthenticated,
-        accessToken: null }),
+      version: 2,
       partialize: (state) => ({
         user: state.user,
+        accessToken: state.accessToken,
+        refreshToken: state.refreshToken,
         isAuthenticated: state.isAuthenticated,
       }),
     }

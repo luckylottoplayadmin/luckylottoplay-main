@@ -70,17 +70,20 @@ api.interceptors.response.use(
       isRefreshing = true
 
       try {
-        // MED-01: No refresh token in the request body — the HttpOnly cookie
-        // is sent automatically by the browser via withCredentials: true
+        const storedRefreshToken = useAuthStore.getState().refreshToken
         const { data } = await axios.post(
           `${BASE_URL}/auth/refresh`,
-          {},
-          { withCredentials: true },
+          { refreshToken: storedRefreshToken },
+          {
+            withCredentials: true,
+            headers: storedRefreshToken ? { 'X-Refresh-Token': storedRefreshToken } : {},
+          },
         )
         const newToken = data.data.accessToken
+        const newRefreshToken = data.data.refreshToken || storedRefreshToken
 
-        // Update in-memory store with the new access token
-        useAuthStore.getState().setToken(newToken)
+        // Update in-memory and persistent store with the new access token
+        useAuthStore.getState().setToken(newToken, newRefreshToken)
 
         processQueue(null, newToken)
         originalRequest.headers.Authorization = `Bearer ${newToken}`

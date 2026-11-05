@@ -349,7 +349,7 @@ export default async function authRoutes(app: FastifyInstance) {
       success: true,
       data: {
         accessToken,
-        // refreshToken intentionally omitted — delivered via HttpOnly cookie
+        refreshToken,
         user: {
           id: user.id,
           email: user.email,
@@ -401,19 +401,24 @@ export default async function authRoutes(app: FastifyInstance) {
 
   // POST /auth/refresh
   app.post('/refresh', async (request, reply) => {
-    // MED-01: Read refresh token from HttpOnly cookie (not request body)
+    // Read refresh token from HttpOnly cookie, request body, or header
     const cookieHeader = request.headers['cookie'] || ''
-    const refreshToken = cookieHeader
+    const cookieToken = cookieHeader
       .split(';')
       .map((c: string) => c.trim())
       .find((c: string) => c.startsWith('refreshToken='))
       ?.split('=')[1]
 
+    const bodyToken = (request.body as any)?.refreshToken
+    const headerToken = request.headers['x-refresh-token'] as string | undefined
+
+    const refreshToken = cookieToken || bodyToken || headerToken
+
     if (!refreshToken) {
       return reply.status(401).send({ success: false, error: 'Refresh token required' })
     }
 
-    // HIGH-2: Hash the cookie value before DB lookup so we never store/compare plaintext.
+    // HIGH-2: Hash the token value before DB lookup so we never store/compare plaintext.
     const session = await prisma.session.findUnique({
       where: { refreshTokenHash: hashToken(refreshToken) },
       include: { user: { select: { id: true, role: true, status: true } } },
@@ -439,7 +444,7 @@ export default async function authRoutes(app: FastifyInstance) {
       data: { lastUsedAt: new Date() },
     })
 
-    return reply.send({ success: true, data: { accessToken: newAccessToken } })
+    return reply.send({ success: true, data: { accessToken: newAccessToken, refreshToken } })
   })
 
   // POST /auth/logout
