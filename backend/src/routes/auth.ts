@@ -351,7 +351,7 @@ export default async function authRoutes(app: FastifyInstance) {
       success: true,
       data: {
         accessToken,
-        refreshToken,
+        // refreshToken delivered exclusively via Secure, HttpOnly, Host-Only (__Host-refresh) cookie
         user: {
           id: user.id,
           email: user.email,
@@ -471,7 +471,6 @@ export default async function authRoutes(app: FastifyInstance) {
       success: true,
       data: {
         accessToken: newAccessToken,
-        refreshToken: newRefreshToken,
       },
     })
   })

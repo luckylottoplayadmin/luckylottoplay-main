@@ -70,20 +70,38 @@ api.interceptors.response.use(
       isRefreshing = true
 
       try {
-        const storedRefreshToken = useAuthStore.getState().refreshToken
+        // One-time migration: check for legacy stored token to establish __Host-refresh session
+        let legacyToken: string | null = null
+        try {
+          const raw = localStorage.getItem('auth-store')
+          if (raw) {
+            const parsed = JSON.parse(raw)
+            legacyToken = parsed?.state?.refreshToken || null
+          }
+        } catch {}
+
         const { data } = await axios.post(
           `${BASE_URL}/auth/refresh`,
-          { refreshToken: storedRefreshToken },
-          {
-            withCredentials: true,
-            headers: storedRefreshToken ? { 'X-Refresh-Token': storedRefreshToken } : {},
-          },
+          legacyToken ? { refreshToken: legacyToken } : {},
+          { withCredentials: true },
         )
         const newToken = data.data.accessToken
-        const newRefreshToken = data.data.refreshToken || storedRefreshToken
 
-        // Update in-memory and persistent store with the new access token
-        useAuthStore.getState().setToken(newToken, newRefreshToken)
+        // Clean up any legacy tokens from localStorage to ensure zero tokens in storage
+        try {
+          const raw = localStorage.getItem('auth-store')
+          if (raw) {
+            const parsed = JSON.parse(raw)
+            if (parsed?.state?.refreshToken || parsed?.state?.accessToken) {
+              delete parsed.state.refreshToken
+              delete parsed.state.accessToken
+              localStorage.setItem('auth-store', JSON.stringify(parsed))
+            }
+          }
+        } catch {}
+
+        // Update in-memory store with the new access token (never written to storage)
+        useAuthStore.getState().setToken(newToken)
 
         processQueue(null, newToken)
         originalRequest.headers.Authorization = `Bearer ${newToken}`

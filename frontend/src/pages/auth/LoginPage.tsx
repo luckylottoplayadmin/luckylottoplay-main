@@ -44,8 +44,8 @@ export default function LoginPage() {
         toast.error('Please enter your 2FA authenticator code')
         return
       }
-      const { user, accessToken, refreshToken } = r.data.data!
-      setAuth(user, accessToken, refreshToken)
+      const { user, accessToken } = r.data.data!
+      setAuth(user, accessToken)
       toast.success(`Welcome back, ${user.firstName}!`)
       navigate(user.role !== 'USER' ? '/admin' : '/')
     },
