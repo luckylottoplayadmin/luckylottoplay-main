@@ -60,9 +60,15 @@ export async function refreshSession(): Promise<string> {
       }
 
       return newToken
-    } catch (err) {
-      clearLegacyRefreshToken()
-      useAuthStore.getState().logout()
+    } catch (err: any) {
+      const status = err?.response?.status
+      // Only terminate the session if the server definitively rejected the credentials (401 Unauthorized or 403 Forbidden)
+      if (status === 401 || status === 403) {
+        clearLegacyRefreshToken()
+        useAuthStore.getState().logout()
+      }
+      // For temporary network glitches, offline mode, timeouts, or 502/503/504 errors,
+      // preserve user state so they are not unexpectedly logged out during a momentary connectivity drop.
       throw err
     } finally {
       refreshPromise = null
