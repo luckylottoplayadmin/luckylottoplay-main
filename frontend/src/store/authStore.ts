@@ -14,6 +14,53 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import type { User } from '@/types'
 
+// ── Extract and buffer legacy refresh token in memory BEFORE Zustand migrates localStorage ──
+let memoryLegacyRefreshToken: string | null = null
+
+try {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    const raw = window.localStorage.getItem('auth-store')
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      const token = parsed?.state?.refreshToken || parsed?.refreshToken
+      if (typeof token === 'string' && token.trim().length > 0) {
+        memoryLegacyRefreshToken = token.trim()
+      }
+    }
+  }
+} catch {
+  // Ignore localStorage parsing errors
+}
+
+/**
+ * Retrieve the buffered legacy refresh token for one-time exchange against /auth/refresh
+ */
+export function getLegacyRefreshToken(): string | null {
+  return memoryLegacyRefreshToken
+}
+
+/**
+ * Permanently purge legacy refresh token from memory and persistent storage
+ */
+export function clearLegacyRefreshToken(): void {
+  memoryLegacyRefreshToken = null
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const raw = window.localStorage.getItem('auth-store')
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        if (parsed?.state?.refreshToken || parsed?.state?.accessToken || parsed?.refreshToken || parsed?.accessToken) {
+          delete parsed?.state?.refreshToken
+          delete parsed?.state?.accessToken
+          delete parsed?.refreshToken
+          delete parsed?.accessToken
+          window.localStorage.setItem('auth-store', JSON.stringify(parsed))
+        }
+      }
+    }
+  } catch {}
+}
+
 interface AuthStore {
   user: User | null
   accessToken: string | null
@@ -49,6 +96,7 @@ export const useAuthStore = create<AuthStore>()(
       },
 
       logout: () => {
+        clearLegacyRefreshToken()
         set({ user: null, accessToken: null, isAuthenticated: false })
       },
 
@@ -57,11 +105,17 @@ export const useAuthStore = create<AuthStore>()(
     {
       name: 'auth-store',
       version: 3,
-      // Drop any legacy persisted tokens during migration and hydration
-      migrate: (persisted: any) => ({
-        user: persisted?.user ?? null,
-        isAuthenticated: !!persisted?.isAuthenticated,
-      }),
+      // Capture and drop any legacy persisted tokens during migration and hydration
+      migrate: (persisted: any) => {
+        const candidate = persisted?.refreshToken || persisted?.state?.refreshToken
+        if (candidate && !memoryLegacyRefreshToken && typeof candidate === 'string') {
+          memoryLegacyRefreshToken = candidate.trim()
+        }
+        return {
+          user: persisted?.user ?? null,
+          isAuthenticated: !!persisted?.isAuthenticated,
+        }
+      },
       merge: (persisted: any, current) => ({
         ...current,
         user: persisted?.user ?? null,

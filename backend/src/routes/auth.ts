@@ -424,7 +424,24 @@ export default async function authRoutes(app: FastifyInstance) {
     // HIGH-2: Hash the token value before DB lookup so we never store/compare plaintext.
     const session = await prisma.session.findUnique({
       where: { refreshTokenHash: hashToken(refreshToken) },
-      include: { user: { select: { id: true, role: true, status: true } } },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            username: true,
+            firstName: true,
+            lastName: true,
+            role: true,
+            emailVerified: true,
+            twoFactorEnabled: true,
+            kycStatus: true,
+            wallet: true,
+            roles: true,
+            status: true,
+          },
+        },
+      },
     })
 
     if (!session || !session.isActive || session.expiresAt < new Date()) {
@@ -471,6 +488,19 @@ export default async function authRoutes(app: FastifyInstance) {
       success: true,
       data: {
         accessToken: newAccessToken,
+        user: {
+          id: session.user.id,
+          email: session.user.email,
+          username: session.user.username,
+          firstName: session.user.firstName,
+          lastName: session.user.lastName,
+          role: session.user.role,
+          emailVerified: session.user.emailVerified,
+          twoFactorEnabled: session.user.twoFactorEnabled,
+          kycStatus: session.user.kycStatus,
+          wallet: session.user.wallet,
+          roles: session.user.roles,
+        },
       },
     })
   })

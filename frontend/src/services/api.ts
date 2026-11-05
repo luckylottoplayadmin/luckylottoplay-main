@@ -12,7 +12,7 @@
  */
 
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios'
-import { useAuthStore } from '@/store/authStore'
+import { useAuthStore, getLegacyRefreshToken, clearLegacyRefreshToken } from '@/store/authStore'
 
 const BASE_URL = import.meta.env.VITE_API_URL || '/api'
 
@@ -20,98 +20,103 @@ export const api = axios.create({
   baseURL: BASE_URL,
   headers: { 'Content-Type': 'application/json' },
   timeout: 30000,
-  // MED-01: Required for the browser to send HttpOnly cookies on same-origin requests
+  // Required for the browser to send HttpOnly (__Host-refresh) cookies on cross-origin / same-site requests
   withCredentials: true,
 })
 
-// ── Request Interceptor: Attach access token from memory ──────────────────────
-api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
-  // MED-01: Read from Zustand memory — NOT from localStorage
-  const token = useAuthStore.getState().accessToken
+let refreshPromise: Promise<string> | null = null
+
+/**
+ * Perform a single, deduplicated session refresh using the __Host-refresh cookie or buffered legacy token.
+ * Returns the fresh accessToken and updates user state in store.
+ */
+export async function refreshSession(): Promise<string> {
+  if (refreshPromise) {
+    return refreshPromise
+  }
+
+  refreshPromise = (async () => {
+    try {
+      const legacyToken = getLegacyRefreshToken()
+      const { data } = await axios.post(
+        `${BASE_URL}/auth/refresh`,
+        legacyToken ? { refreshToken: legacyToken } : {},
+        { withCredentials: true },
+      )
+      const newToken = data?.data?.accessToken
+      const user = data?.data?.user
+
+      if (!newToken) {
+        throw new Error('No access token returned from refresh')
+      }
+
+      // Successful refresh: clear legacy credentials immediately
+      clearLegacyRefreshToken()
+
+      // Update in-memory auth state
+      useAuthStore.getState().setToken(newToken)
+      if (user) {
+        useAuthStore.getState().updateUser(user)
+      }
+
+      return newToken
+    } catch (err) {
+      clearLegacyRefreshToken()
+      useAuthStore.getState().logout()
+      throw err
+    } finally {
+      refreshPromise = null
+    }
+  })()
+
+  return refreshPromise
+}
+
+// ── Request Interceptor: Attach access token (or await refresh on reload) ─────
+api.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
+  // Never intercept auth endpoints to avoid loops
+  if (config.url?.includes('/auth/login') || config.url?.includes('/auth/register') || config.url?.includes('/auth/refresh')) {
+    return config
+  }
+
+  let token = useAuthStore.getState().accessToken
+
+  // If authenticated in store (or legacy token pending) but memory token is missing, restore session first
+  if (!token && (useAuthStore.getState().isAuthenticated || !!getLegacyRefreshToken())) {
+    try {
+      token = await refreshSession()
+    } catch {
+      // Refresh failed; request will proceed unauthenticated and get rejected with 401
+    }
+  }
+
   if (token && config.headers) {
     config.headers.Authorization = `Bearer ${token}`
   }
   return config
 })
 
-// ── Response Interceptor: Handle 401 + token refresh ─────────────────────────
-let isRefreshing = false
-let failedQueue: Array<{ resolve: (token: string) => void; reject: (err: unknown) => void }> = []
-
-function processQueue(error: unknown, token: string | null = null) {
-  failedQueue.forEach(({ resolve, reject }) => {
-    if (error) reject(error)
-    else resolve(token!)
-  })
-  failedQueue = []
-}
-
+// ── Response Interceptor: Handle 401 + deduplicated token refresh ─────────────
 api.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean }
 
-    // Don't intercept auth endpoints to avoid infinite loops
-    if (originalRequest.url?.includes('/auth/login') || originalRequest.url?.includes('/auth/refresh')) {
+    // Don't intercept auth endpoints
+    if (originalRequest?.url?.includes('/auth/login') || originalRequest?.url?.includes('/auth/refresh')) {
       return Promise.reject(error)
     }
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      if (isRefreshing) {
-        return new Promise((resolve, reject) => {
-          failedQueue.push({ resolve, reject })
-        }).then((token) => {
-          originalRequest.headers.Authorization = `Bearer ${token}`
-          return api(originalRequest)
-        })
-      }
-
+    if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
       originalRequest._retry = true
-      isRefreshing = true
-
       try {
-        // One-time migration: check for legacy stored token to establish __Host-refresh session
-        let legacyToken: string | null = null
-        try {
-          const raw = localStorage.getItem('auth-store')
-          if (raw) {
-            const parsed = JSON.parse(raw)
-            legacyToken = parsed?.state?.refreshToken || null
-          }
-        } catch {}
-
-        const { data } = await axios.post(
-          `${BASE_URL}/auth/refresh`,
-          legacyToken ? { refreshToken: legacyToken } : {},
-          { withCredentials: true },
-        )
-        const newToken = data.data.accessToken
-
-        // Clean up any legacy tokens from localStorage to ensure zero tokens in storage
-        try {
-          const raw = localStorage.getItem('auth-store')
-          if (raw) {
-            const parsed = JSON.parse(raw)
-            if (parsed?.state?.refreshToken || parsed?.state?.accessToken) {
-              delete parsed.state.refreshToken
-              delete parsed.state.accessToken
-              localStorage.setItem('auth-store', JSON.stringify(parsed))
-            }
-          }
-        } catch {}
-
-        // Update in-memory store with the new access token (never written to storage)
-        useAuthStore.getState().setToken(newToken)
-
-        processQueue(null, newToken)
-        originalRequest.headers.Authorization = `Bearer ${newToken}`
+        const newToken = await refreshSession()
+        if (originalRequest.headers) {
+          originalRequest.headers.Authorization = `Bearer ${newToken}`
+        }
         return api(originalRequest)
       } catch (refreshError) {
-        processQueue(refreshError, null)
-        useAuthStore.getState().logout()
         return Promise.reject(refreshError)
-      } finally {
-        isRefreshing = false
       }
     }
 

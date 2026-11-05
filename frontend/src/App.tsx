@@ -1,8 +1,8 @@
 import { lazy, Suspense, useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
-import { useAuthStore } from '@/store/authStore'
+import { useAuthStore, getLegacyRefreshToken } from '@/store/authStore'
 import { useThemeStore } from '@/store/themeStore'
-import api from '@/services/api'
+import { refreshSession } from '@/services/api'
 import Header from '@/components/Layout/Header'
 import Footer from '@/components/Layout/Footer'
 import ProtectedRoute from '@/components/Layout/ProtectedRoute'
@@ -81,50 +81,18 @@ const PageLoader = () => (
 
 export default function App() {
   const { theme } = useThemeStore()
-  const { isAuthenticated, accessToken, setToken, logout } = useAuthStore()
+  const { isAuthenticated, accessToken } = useAuthStore()
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
   }, [theme])
 
-  // Session restoration on page reload using __Host-refresh HttpOnly cookie
+  // Session restoration on page reload using __Host-refresh HttpOnly cookie or buffered legacy token
   useEffect(() => {
-    if (isAuthenticated && !accessToken) {
-      let legacyToken: string | null = null
-      try {
-        const raw = localStorage.getItem('auth-store')
-        if (raw) {
-          const parsed = JSON.parse(raw)
-          legacyToken = parsed?.state?.refreshToken || null
-        }
-      } catch {}
-
-      api.post('/auth/refresh', legacyToken ? { refreshToken: legacyToken } : {})
-        .then((res) => {
-          const token = res.data?.data?.accessToken
-          if (token) {
-            setToken(token)
-            // One-time cleanup: remove any legacy persisted tokens from localStorage
-            try {
-              const raw = localStorage.getItem('auth-store')
-              if (raw) {
-                const parsed = JSON.parse(raw)
-                if (parsed?.state?.refreshToken || parsed?.state?.accessToken) {
-                  delete parsed.state.refreshToken
-                  delete parsed.state.accessToken
-                  localStorage.setItem('auth-store', JSON.stringify(parsed))
-                }
-              }
-            } catch {}
-          } else {
-            logout()
-          }
-        })
-        .catch(() => {
-          logout()
-        })
+    if ((isAuthenticated || !!getLegacyRefreshToken()) && !accessToken) {
+      refreshSession().catch(() => {})
     }
-  }, [isAuthenticated, accessToken, setToken, logout])
+  }, [isAuthenticated, accessToken])
 
   return (
     <div className="app-root">
