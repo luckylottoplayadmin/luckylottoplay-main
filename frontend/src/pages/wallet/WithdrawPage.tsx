@@ -11,7 +11,7 @@ export default function WithdrawPage() {
   const [amount, setAmount] = useState('')
   const [totp, setTotp] = useState('')
   const { user } = useAuthStore()
-  const couponAppUrl = import.meta.env.VITE_COUPON_APP_URL || 'https://coupon-frontend-e8b3.onrender.com'
+  const couponAppUrl = import.meta.env.VITE_COUPON_APP_URL || 'https://couponworld.live'
 
   const { data: wallet } = useQuery({
     queryKey: ['wallet'],

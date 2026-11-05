@@ -83,7 +83,7 @@ export default function DepositPage() {
           
           <div style={{ textAlign: 'center', marginTop: '16px' }}>
             <a 
-              href={import.meta.env.VITE_COUPON_APP_URL || 'http://localhost:5174'} 
+              href={import.meta.env.VITE_COUPON_BUY_URL || 'https://couponworld.live/dashboard/marketplace/coupon/e3648e73-1c92-4252-a666-b67f2f11b781'} 
               target="_blank" 
               rel="noreferrer" 
               style={{ color: 'var(--color-primary)', fontSize: '14px', textDecoration: 'none', fontWeight: 500 }}
