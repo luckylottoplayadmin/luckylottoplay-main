@@ -8,8 +8,8 @@
 }
 
 .header .brand-logo {
-  width: 144px;
-  max-height: calc(var(--header-height) - 8px);
+  width: 160px;
+  max-height: calc(var(--header-height) - 6px);
 }
 
 .sidebar .brand-logo {

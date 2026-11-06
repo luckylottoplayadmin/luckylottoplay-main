@@ -152,7 +152,7 @@ export default function Header() {
                     <div className="avatar avatar-sm">
                       {user?.firstName?.[0]}{user?.lastName?.[0]}
                     </div>
-                    <span style={{ fontSize: '13px', fontWeight: 600 }}>
+                    <span style={{ fontSize: '15px', fontWeight: 600 }}>
                       {user?.firstName}
                     </span>
                     <ChevronDown size={14} style={{
