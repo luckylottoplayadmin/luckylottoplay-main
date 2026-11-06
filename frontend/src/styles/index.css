@@ -1913,56 +1913,110 @@ input:checked + .switch-track::after { transform: translateY(-50%) translateX(20
   display: inline-block;
 }
 
+.kyc-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(10, 15, 29, 0.75);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: fadeIn 0.15s ease-out;
+}
+
+.kyc-modal-card {
+  width: 100%;
+  max-width: 1140px;
+  height: 88vh;
+  max-height: 820px;
+  min-height: 480px;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--bg-card, #ffffff);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+  animation: slideUp 0.2s ease-out;
+}
+
 .kyc-modal-header {
-  padding: var(--space-md) var(--space-lg);
+  flex-shrink: 0;
+  padding: 16px 20px;
   border-bottom: 1px solid var(--border-color);
   display: flex;
   justify-content: space-between;
   align-items: center;
+  background-color: var(--bg-card);
   position: relative;
+  z-index: 10;
 }
 
 .kyc-modal-header-info {
   display: flex;
   align-items: center;
-  gap: var(--space-md);
+  gap: 14px;
+  min-width: 0;
 }
 
 .kyc-modal-content {
   display: flex;
   flex-direction: row;
   flex: 1;
+  min-height: 0;
   overflow: hidden;
 }
 
 .kyc-modal-panel-left {
-  flex: 2;
+  flex: 1.25;
   display: flex;
   flex-direction: column;
+  min-height: 0;
+  min-width: 0;
   border-right: 1px solid var(--border-color);
-  background-color: var(--bg-secondary);
+  background-color: var(--bg-secondary, #0f172a);
 }
 
 .kyc-modal-panel-right {
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow-y: auto;
+  min-height: 0;
+  min-width: 0;
+  background-color: var(--bg-card);
 }
 
-@media (max-width: 768px) {
-  .kyc-modal-header {
-    flex-direction: column;
+.kyc-modal-right-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+.kyc-modal-action-bar {
+  flex-shrink: 0;
+  padding: 14px 20px;
+  border-top: 1px solid var(--border-color);
+  background-color: var(--bg-card);
+  display: flex;
+  gap: 12px;
+  z-index: 5;
+}
+
+@media (max-width: 860px) {
+  .kyc-modal-overlay {
+    padding: 8px;
     align-items: flex-start;
-    gap: 16px;
   }
-  .kyc-modal-header-info {
-    flex-wrap: wrap;
+  .kyc-modal-card {
+    height: 94vh;
+    max-height: none;
   }
-  .kyc-modal-header .close-btn {
-    position: absolute;
-    top: 16px;
-    right: 16px;
+  .kyc-modal-header {
+    padding: 12px 16px;
   }
   .kyc-modal-content {
     flex-direction: column;
@@ -1971,12 +2025,12 @@ input:checked + .switch-track::after { transform: translateY(-50%) translateX(20
   .kyc-modal-panel-left {
     border-right: none;
     border-bottom: 1px solid var(--border-color);
-    min-height: 350px;
+    height: 320px;
     flex: none;
   }
   .kyc-modal-panel-right {
-    overflow-y: visible;
-    flex: none;
+    flex: 1;
+    min-height: 0;
   }
 }
 
