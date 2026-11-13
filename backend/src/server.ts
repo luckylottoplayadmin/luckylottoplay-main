@@ -132,7 +132,7 @@ async function buildApp() {
 
   // ── JWT ───────────────────────────────────────────────
   await app.register(jwt, {
-    secret: process.env.JWT_SECRET || 'fallback_secret_must_be_32_chars!',
+    secret: process.env.JWT_SECRET as string, // validated by checkSecretStrength() before startup
     sign: { expiresIn: '15m' },
   })
 

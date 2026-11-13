@@ -192,6 +192,15 @@ export default async function walletRoutes(app: FastifyInstance) {
 
     if (!user) return reply.status(404).send({ success: false, error: 'User not found' })
 
+    // Check KYC before consuming a one-time code so a rejected request does not burn it.
+    if (user.kycStatus !== 'APPROVED') {
+      return reply.status(403).send({
+        success: false,
+        error: 'Please complete KYC verification before transferring funds',
+        code: 'KYC_REQUIRED',
+      })
+    }
+
     let valid = false
     const cachedOtp = await redis.get(`email_otp:${userId}:withdraw`)
     
@@ -212,14 +221,6 @@ export default async function walletRoutes(app: FastifyInstance) {
       } else {
         return reply.status(403).send({ success: false, error: 'You must enable 2-Step Verification or request an Email OTP before transferring funds.', code: '2FA_SETUP_REQUIRED' })
       }
-    }
-
-    if (user.kycStatus !== 'APPROVED') {
-      return reply.status(403).send({
-        success: false,
-        error: 'Please complete KYC verification before transferring funds',
-        code: 'KYC_REQUIRED',
-      })
     }
 
     // Fetch wallet for initial balance check (precise lock happens inside transaction)

@@ -42,6 +42,12 @@ async function hashPassword(plaintext: string): Promise<string> {
   })
 }
 
+let dummyHashPromise: Promise<string> | undefined
+function dummyHash(): Promise<string> {
+  dummyHashPromise ??= hashPassword(randomBytes(16).toString('hex'))
+  return dummyHashPromise
+}
+
 // ── Validation schemas ────────────────────────────────────────────────────────
 
 const registerSchema = z.object({
@@ -96,16 +102,21 @@ export default async function authRoutes(app: FastifyInstance) {
   }, async (request, reply) => {
     const body = registerSchema.parse(request.body)
 
-    // Check for existing user
-    const existing = await prisma.user.findFirst({
-      where: { OR: [{ email: body.email }, { username: body.username }] },
-    })
-
-    if (existing) {
-      const field = existing.email === body.email ? 'email' : 'username'
+    // Check for existing user. An existing email gets the same generic response as a
+    // new registration (no OTP is sent) so the endpoint cannot be used to enumerate accounts.
+    const emailTaken = await prisma.user.findUnique({ where: { email: body.email }, select: { id: true } })
+    if (emailTaken) {
+      return reply.status(201).send({
+        success: true,
+        message: 'OTP sent. Please check your email to verify your account.',
+        data: { email: body.email, username: body.username },
+      })
+    }
+    const usernameTaken = await prisma.user.findUnique({ where: { username: body.username }, select: { id: true } })
+    if (usernameTaken) {
       return reply.status(409).send({
         success: false,
-        error: `An account with this ${field} already exists`,
+        error: 'An account with this username already exists',
       })
     }
 
@@ -168,17 +179,19 @@ export default async function authRoutes(app: FastifyInstance) {
     const { email } = forgotPasswordSchema.parse(request.body)
     const user = await prisma.user.findUnique({ where: { email } })
     
+    const genericResponse = { success: true, message: 'If this email is awaiting verification, a new code has been sent.' }
     let isPending = false
     let pendingName = ''
     if (!user) {
       const pendingData = await redis.get(`pending_reg:${email}`)
       if (!pendingData) {
-        return reply.status(404).send({ success: false, error: 'User not found or registration expired' })
+        return reply.send(genericResponse)
       }
       isPending = true
-      pendingName = JSON.parse(pendingData).firstName || JSON.parse(pendingData).username
+      const parsedPending = JSON.parse(pendingData)
+      pendingName = parsedPending.firstName || parsedPending.username
     } else if (user.emailVerified) {
-      return reply.status(400).send({ success: false, error: 'Email is already verified' })
+      return reply.send(genericResponse)
     }
 
     const otp = randomInt(100000, 999999).toString()
@@ -202,10 +215,7 @@ export default async function authRoutes(app: FastifyInstance) {
     }
 
 
-    return reply.send({
-      success: true,
-      message: emailSent ? 'Verification email resent. Please check your inbox.' : 'Email delivery failed. Please try again later.',
-    })
+    return reply.send(emailSent ? genericResponse : { success: true, message: 'If this email is awaiting verification, a new code has been sent.' })
   })
 
   // POST /auth/login
@@ -216,6 +226,15 @@ export default async function authRoutes(app: FastifyInstance) {
     config: { rateLimit: devLimit(5, '15 minutes') },
   }, async (request, reply) => {
     const body = loginSchema.parse(request.body)
+
+    // Per-account throttle (in addition to the per-IP limiter) to slow distributed guessing.
+    const failKey = `login_fail:${body.email}`
+    try {
+      const failures = Number(await redis.get(failKey)) || 0
+      if (failures >= 10) {
+        return reply.status(429).send({ success: false, error: 'Too many failed attempts. Please try again later.' })
+      }
+    } catch { /* Redis unavailable: fall back to IP limiter only */ }
 
     const user = await prisma.user.findUnique({
       where: { email: body.email },
@@ -234,12 +253,18 @@ export default async function authRoutes(app: FastifyInstance) {
     })
 
     if (!user) {
+      // Burn comparable time to a real password check so response timing does not reveal unknown emails.
+      await argon2.verify(await dummyHash(), body.password).catch(() => false)
       return reply.status(401).send({ success: false, error: 'Incorrect email or password' })
     }
 
     // Check password
     const validPassword = await argon2.verify(user.passwordHash, body.password)
     if (!validPassword) {
+      try {
+        const n = await redis.incr(failKey)
+        if (n === 1) await redis.expire(failKey, 900)
+      } catch { /* ignore */ }
       await auditLog(user.id, 'LOGIN_FAILED', 'User', user.id, undefined, undefined, request)
       return reply.status(401).send({ success: false, error: 'Incorrect email or password' })
     }
@@ -285,6 +310,8 @@ export default async function authRoutes(app: FastifyInstance) {
         return reply.status(401).send({ success: false, error: 'Invalid verification code' })
       }
     }
+
+    try { await redis.del(failKey) } catch { /* ignore */ }
 
     // Create session
     const sessionId = randomBytes(16).toString('hex')
@@ -664,7 +691,9 @@ export default async function authRoutes(app: FastifyInstance) {
   })
 
   // POST /auth/reset-password
-  app.post('/reset-password', async (request, reply) => {
+  app.post('/reset-password', {
+    preHandler: [sensitiveRateLimit({ max: 10, timeWindowMs: 15 * 60 * 1000, keyPrefix: 'auth:reset' })],
+  }, async (request, reply) => {
     const { token, password } = resetPasswordSchema.parse(request.body)
 
     const userId = await redis.get(`pwd_reset:${token}`)
