@@ -429,7 +429,10 @@ export default async function walletRoutes(app: FastifyInstance) {
   })
 
   // POST /wallet/redeem - Redeem a coupon code
-  app.post('/redeem', { preHandler: [authenticate, requireVerifiedEmail] }, async (request, reply) => {
+  app.post('/redeem', {
+    // Limit guessing of coupon codes per client
+    preHandler: [authenticate, requireVerifiedEmail, sensitiveRateLimit({ max: 10, timeWindowMs: 15 * 60 * 1000, keyPrefix: 'wallet:redeem' })],
+  }, async (request, reply) => {
     const body = redeemSchema.parse(request.body)
     const userId = request.user.userId
 
@@ -450,7 +453,10 @@ export default async function walletRoutes(app: FastifyInstance) {
 
     // STEP 1: Verify coupon exists and is valid (read-only, does not lock)
     const verifyUrl = `${process.env.COUPON_API_URL}/coupons/verify`
-    const verifyRes = await fetch(verifyUrl, {
+    let verifyRes: Response
+    try {
+      verifyRes = await fetch(verifyUrl, {
+      signal: AbortSignal.timeout(15_000),
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -463,6 +469,10 @@ export default async function walletRoutes(app: FastifyInstance) {
         userCountry: userCountry
       })
     })
+    } catch (err) {
+      request.log.error({ err }, 'Coupon verify request failed')
+      return reply.status(503).send({ success: false, error: 'Coupon service is temporarily unavailable. Please try again shortly.' })
+    }
 
     let verifyData: any
     try {
@@ -508,7 +518,10 @@ export default async function walletRoutes(app: FastifyInstance) {
     // concurrent request succeeds; the other gets a clear error here before
     // we touch the local wallet at all. This is the safe direction to fail in.
     const redeemUrl = `${process.env.COUPON_API_URL}/coupons/redeem`
-    const redeemRes = await fetch(redeemUrl, {
+    let redeemRes: Response
+    try {
+      redeemRes = await fetch(redeemUrl, {
+      signal: AbortSignal.timeout(15_000),
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -524,6 +537,11 @@ export default async function walletRoutes(app: FastifyInstance) {
         userCountry: userCountry,
       })
     })
+    } catch (err) {
+      // Outcome unknown: the coupon service may or may not have consumed the coupon.
+      request.log.error({ err, userId, couponId, walletTransactionId }, 'Coupon redeem request failed — outcome unknown')
+      return reply.status(502).send({ success: false, error: 'Could not confirm redemption. Do not retry; if your balance does not update, contact support with reference: ' + walletTransactionId })
+    }
 
     let redeemData: any
     try {
