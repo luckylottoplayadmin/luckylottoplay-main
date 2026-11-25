@@ -28,15 +28,15 @@ export default function CountdownTimer({ targetDate, size = 'md', label, onExpir
   const labelStyle = size === 'lg' ? { fontSize: '12px' } : {}
 
   const sepStyle = size === 'sm'
-    ? { fontSize: '16px', fontWeight: 800, margin: '0 3px' }
+    ? { fontSize: '16px', fontWeight: 800, margin: '0 2px', paddingTop: '5px' }
     : size === 'lg'
-    ? { fontSize: '28px', fontWeight: 800, margin: '0 6px' }
-    : { fontSize: '20px', fontWeight: 800, margin: '0 4px' }
+    ? { fontSize: '28px', fontWeight: 800, margin: '0 6px', paddingTop: '12px' }
+    : { fontSize: '20px', fontWeight: 800, margin: '0 4px', paddingTop: '8px' }
 
   return (
     <div>
       {label && <div className="jackpot-label" style={{ marginBottom: '8px' }}>{label}</div>}
-      <div className="countdown" style={{ alignItems: 'center' }}>
+      <div className="countdown" style={{ alignItems: 'flex-start' }}>
         {days > 0 && (
           <>
             <div className="countdown-unit">

@@ -86,12 +86,12 @@ export default function HomePage() {
                 transition={{ duration: 0.6, delay: 0.12, ease: EASE_OUT_EXPO }}
               >
                 <div style={{ display: 'flex', alignItems: 'center' }}>
-                  <img src={`/${topGame.slug}-logo.png`} alt={topGame.name} style={{ height: '80px', objectFit: 'contain', marginBottom: '24px', filter: 'drop-shadow(0 6px 14px rgba(0,0,0,0.28))' }} 
+                  <img src={`/${topGame.slug}-logo.png`} alt={topGame.name} style={{ height: '108px', objectFit: 'contain', marginBottom: '20px', filter: 'drop-shadow(0 8px 18px rgba(0,0,0,0.3))' }} 
                        onError={(e) => {
                          e.currentTarget.style.display = 'none';
                          const span = document.createElement('span');
                          span.textContent = topGame.name;
-                         span.style.fontSize = '32px';
+                         span.style.fontSize = '36px';
                          span.style.fontWeight = '900';
                          span.style.fontFamily = 'var(--font-display)';
                          e.currentTarget.parentElement?.appendChild(span);
@@ -100,11 +100,11 @@ export default function HomePage() {
                 
                 {topGame.nextDraw && (
                   <>
-                    <div style={{ fontSize: '28px', fontWeight: 700, marginBottom: '8px' }}>
+                    <div style={{ fontSize: '28px', fontWeight: 700, marginBottom: '10px' }}>
                       {new Date(topGame.nextDraw.scheduledAt).toDateString() === new Date().toDateString() ? 'Today' : new Date(topGame.nextDraw.scheduledAt).toLocaleDateString('en-US', { weekday: 'short' })} {new Date(topGame.nextDraw.scheduledAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
                     </div>
-                    <div style={{ fontSize: '14px', marginBottom: '32px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span>Entries Close:</span>
+                    <div style={{ fontSize: '14px', marginBottom: '28px', display: 'flex', alignItems: 'flex-start', gap: '10px', flexWrap: 'wrap' }}>
+                      <span style={{ paddingTop: '6px', fontWeight: 600, color: 'rgba(255, 255, 255, 0.92)' }}>Entries Close:</span>
                       <CountdownTimer targetDate={topGame.nextDraw.scheduledAt} size="sm" />
                     </div>
                   </>
@@ -123,19 +123,18 @@ export default function HomePage() {
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.65, delay: 0.2, ease: EASE_OUT_EXPO }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <span className="animate-coin-flip" style={{ 
-                    marginRight: 'clamp(8px, 2vw, 16px)',
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+                  <span className="animate-float" style={{ 
                     display: 'inline-flex',
                     alignItems: 'center',
-                    filter: 'drop-shadow(0 4px 14px rgba(245, 166, 35, 0.5))'
+                    filter: 'drop-shadow(0 6px 16px rgba(245, 166, 35, 0.5))'
                   }}>
-                    <GoldCoin size="clamp(60px, 15vw, 120px)" />
+                    <GoldCoin size="clamp(64px, 11vw, 108px)" />
                   </span>
                   <span className="animated-jackpot" style={{ 
-                    fontSize: 'clamp(80px, 22vw, 160px)', fontWeight: 900, lineHeight: 0.85, fontFamily: 'var(--font-display)', letterSpacing: '-0.02em',
-                    background: 'linear-gradient(to bottom, #ffe885, #f5a623)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
-                    filter: 'drop-shadow(0 4px 12px rgba(245, 166, 35, 0.4))'
+                    fontSize: 'clamp(80px, 20vw, 152px)', fontWeight: 900, lineHeight: 0.85, fontFamily: 'var(--font-display)', letterSpacing: '-0.02em',
+                    background: 'linear-gradient(180deg, #fffbe0 0%, #ffe26a 45%, #ffb81c 85%, #f59e0b 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
+                    filter: 'drop-shadow(0 6px 22px rgba(255, 209, 64, 0.55)) drop-shadow(0 2px 4px rgba(15, 23, 42, 0.25))'
                   }}>
                     {topGameJackpotStr}
                   </span>
@@ -143,8 +142,8 @@ export default function HomePage() {
                 {isTopGameMillion && (
                   <div style={{ 
                     fontSize: 'clamp(36px, 10vw, 72px)', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '2px', fontFamily: 'var(--font-display)', lineHeight: 1, marginTop: '12px',
-                    background: 'linear-gradient(to bottom, #ffe885, #f5a623)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
-                    filter: 'drop-shadow(0 4px 12px rgba(245, 166, 35, 0.43))'
+                    background: 'linear-gradient(180deg, #fffbe0 0%, #ffe26a 45%, #ffb81c 85%, #f59e0b 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
+                    filter: 'drop-shadow(0 6px 20px rgba(255, 209, 64, 0.5)) drop-shadow(0 2px 4px rgba(15, 23, 42, 0.22))'
                   }}>
                     MILLION
                   </div>
