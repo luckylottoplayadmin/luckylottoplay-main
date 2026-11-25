@@ -4,6 +4,7 @@
 
 import { FastifyRequest, FastifyReply } from 'fastify'
 import { prisma } from '../server'
+import { resolveClientIp } from './sensitiveRateLimit'
 
 declare module '@fastify/jwt' {
   interface FastifyJWT {
@@ -112,7 +113,7 @@ export async function auditLog(
       resourceId,
       oldValues: oldValues as any,
       newValues: newValues as any,
-      ipAddress: request?.ip,
+      ipAddress: request ? resolveClientIp(request) : undefined,
       userAgent: request?.headers['user-agent'],
     },
   })

@@ -104,7 +104,8 @@ export default async function gameRoutes(app: FastifyInstance) {
   app.get('/:slug/results', async (request, reply) => {
     const { slug } = request.params as { slug: string }
     const { page = '1', limit = '20' } = request.query as Record<string, string>
-    const skip = (Number(page) - 1) * Number(limit)
+    const limitNum = Math.min(Math.max(1, Number(limit) || 20), 100)
+    const skip = (Math.max(1, Number(page) || 1) - 1) * limitNum
 
     const game = await prisma.game.findUnique({ where: { slug }, select: { id: true } })
     if (!game) return reply.status(404).send({ success: false, error: 'Game not found' })
@@ -114,7 +115,7 @@ export default async function gameRoutes(app: FastifyInstance) {
         where: { gameId: game.id, status: 'COMPLETED' },
         orderBy: { scheduledAt: 'desc' },
         skip,
-        take: Number(limit),
+        take: limitNum,
         select: {
           id: true,
           drawNumber: true,
@@ -139,7 +140,7 @@ export default async function gameRoutes(app: FastifyInstance) {
     return reply.send({
       success: true,
       data: draws,
-      pagination: { page: Number(page), limit: Number(limit), total, pages: Math.ceil(total / Number(limit)) },
+      pagination: { page: Math.max(1, Number(page) || 1), limit: limitNum, total, pages: Math.ceil(total / limitNum) },
     })
   })
 

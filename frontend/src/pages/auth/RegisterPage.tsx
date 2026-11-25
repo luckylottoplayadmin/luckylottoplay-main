@@ -34,7 +34,7 @@ const schema = z.object({
     .regex(/[0-9]/, 'Must contain a number'),
   confirmPassword: z.string(),
   referralCode: z.string().optional(),
-  terms: z.literal(true, { errorMap: () => ({ message: 'You must accept the terms' }) }),
+  terms: z.literal(true, { message: 'You must accept the terms' }),
 }).refine((d) => d.password === d.confirmPassword, {
   message: 'Passwords do not match',
   path: ['confirmPassword'],

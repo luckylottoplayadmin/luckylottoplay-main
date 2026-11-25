@@ -71,6 +71,24 @@ export default async function userRoutes(app: FastifyInstance) {
     // MED-2: Validate and whitelist all fields before writing to Prisma.
     const body = patchMeSchema.parse(request.body)
 
+    if (body.country !== undefined) {
+      const existing = await prisma.user.findUnique({
+        where: { id: request.user.userId },
+        select: { country: true, kycStatus: true },
+      })
+      if (!existing) return reply.status(404).send({ success: false, error: 'User not found' })
+      const currentCountry = existing.country?.trim() || ''
+      const nextCountry = body.country?.trim() || ''
+      const countryChanged = currentCountry.toUpperCase() !== nextCountry.toUpperCase()
+      if (countryChanged && (currentCountry.length > 0 || existing.kycStatus === 'PENDING' || existing.kycStatus === 'APPROVED')) {
+        return reply.status(403).send({
+          success: false,
+          code: 'COUNTRY_LOCKED',
+          error: 'Country cannot be changed once set or after KYC submission. Please contact support.',
+        })
+      }
+    }
+
     const updateData: any = {
       ...(body.firstName   !== undefined && { firstName: body.firstName }),
       ...(body.lastName    !== undefined && { lastName:  body.lastName  }),

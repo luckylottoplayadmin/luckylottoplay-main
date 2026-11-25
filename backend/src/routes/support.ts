@@ -7,6 +7,7 @@ import { FastifyInstance } from 'fastify'
 import { z } from 'zod'
 import { prisma } from '../server'
 import { authenticate, requireAdmin } from '../middleware/auth'
+import { sensitiveRateLimit } from '../middleware/sensitiveRateLimit'
 
 const createTicketSchema = z.object({
   subject: z.string().min(5).max(200),
@@ -23,12 +24,15 @@ const addMessageSchema = z.object({
 export default async function supportRoutes(app: FastifyInstance) {
 
   // POST /support/contact - Public contact form submission
-  app.post('/contact', async (request, reply) => {
+  app.post('/contact', {
+    preHandler: [sensitiveRateLimit({ max: 5, timeWindowMs: 15 * 60 * 1000, keyPrefix: 'support:contact' })],
+    config: { rateLimit: { max: 5, timeWindow: '15 minutes' } },
+  }, async (request, reply) => {
     const body = z.object({
-      name: z.string().min(2),
-      email: z.string().email(),
-      subject: z.string().min(3),
-      message: z.string().min(5),
+      name: z.string().trim().min(2).max(100),
+      email: z.string().email().max(200),
+      subject: z.string().trim().min(3).max(200),
+      message: z.string().trim().min(5).max(5000),
     }).parse(request.body)
 
     let categoryRecord = await prisma.ticketCategoryModel.findFirst({ where: { name: 'General Enquiries' } })
@@ -225,7 +229,9 @@ export default async function supportRoutes(app: FastifyInstance) {
     preHandler: [authenticate, requireAdmin],
   }, async (request, reply) => {
     const { id } = request.params as { id: string }
-    const { status } = request.body as { status: string }
+    const { status } = z.object({
+      status: z.enum(['OPEN', 'IN_PROGRESS', 'ESCALATED', 'RESOLVED', 'CLOSED']),
+    }).parse(request.body)
 
     const ticket = await prisma.supportTicket.update({
       where: { id },
@@ -244,7 +250,8 @@ export default async function supportRoutes(app: FastifyInstance) {
     preHandler: [authenticate, requireAdmin],
   }, async (request, reply) => {
     const { page = '1', limit = '20', status } = request.query as Record<string, string>
-    const skip = (Number(page) - 1) * Number(limit)
+    const limitNum = Math.min(Math.max(1, Number(limit) || 20), 100)
+    const skip = (Math.max(1, Number(page) || 1) - 1) * limitNum
 
     const where: any = {}
     if (status) where.status = status
@@ -254,7 +261,7 @@ export default async function supportRoutes(app: FastifyInstance) {
       prisma.supportTicket.findMany({
         where,
         skip,
-        take: Number(limit),
+        take: limitNum,
         orderBy: [{ priority: 'desc' }, { createdAt: 'asc' }],
         include: {
           user: { select: { email: true, firstName: true, lastName: true } },
@@ -267,7 +274,7 @@ export default async function supportRoutes(app: FastifyInstance) {
     return reply.send({
       success: true,
       data: tickets,
-      pagination: { page: Number(page), limit: Number(limit), total, pages: Math.ceil(total / Number(limit)) },
+      pagination: { page: Math.max(1, Number(page) || 1), limit: limitNum, total, pages: Math.ceil(total / limitNum) },
     })
   })
 

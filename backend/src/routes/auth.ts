@@ -87,6 +87,15 @@ const changePasswordSchema = z.object({
   newPassword: z.string().min(8).max(100),
 })
 
+const twoFactorConfirmSchema = z.object({
+  token: z.string().trim().min(6).max(12),
+})
+
+const twoFactorDeleteSchema = z.object({
+  password: z.string().min(1).max(100),
+  token: z.string().trim().min(6).max(12),
+})
+
 // ── Route handlers ────────────────────────────────────────────────────────────
 
 export default async function authRoutes(app: FastifyInstance) {
@@ -307,8 +316,17 @@ export default async function authRoutes(app: FastifyInstance) {
       }
 
       if (!valid) {
+        try {
+          const n = await redis.incr(failKey)
+          if (n === 1) await redis.expire(failKey, 900)
+          const otpFails = await redis.incr(`login_otp_fail:${user.id}`)
+          if (otpFails === 1) await redis.expire(`login_otp_fail:${user.id}`, 300)
+          if (otpFails >= 5) await redis.del(`email_otp:${user.id}:login`)
+        } catch { /* ignore */ }
+        await auditLog(user.id, 'LOGIN_2FA_FAILED', 'User', user.id, undefined, undefined, request)
         return reply.status(401).send({ success: false, error: 'Invalid verification code' })
       }
+      try { await redis.del(`login_otp_fail:${user.id}`) } catch { /* ignore */ }
     }
 
     try { await redis.del(failKey) } catch { /* ignore */ }
@@ -429,7 +447,21 @@ export default async function authRoutes(app: FastifyInstance) {
   })
 
   // POST /auth/refresh
-  app.post('/refresh', async (request, reply) => {
+  app.post('/refresh', {
+    preHandler: [sensitiveRateLimit({ max: 30, timeWindowMs: 15 * 60 * 1000, keyPrefix: 'auth:refresh' })],
+  }, async (request, reply) => {
+    // V-10: Enforce Origin allowlist when Origin header is present (mitigates cross-subdomain CSRF)
+    const origin = request.headers.origin
+    if (origin && process.env.NODE_ENV === 'production') {
+      const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'https://luckylottoplay.live,https://www.luckylottoplay.live,https://lottery-frontend-x3id.onrender.com')
+        .split(',')
+        .map(o => o.trim())
+        .filter(Boolean)
+      if (!allowedOrigins.includes(origin)) {
+        return reply.status(403).send({ success: false, error: 'Forbidden origin' })
+      }
+    }
+
     // Read refresh token from __Host-refresh or refreshToken cookie, request body, or header
     const cookieHeader = request.headers['cookie'] || ''
     const cookieMap = Object.fromEntries(
@@ -444,13 +476,15 @@ export default async function authRoutes(app: FastifyInstance) {
 
     const refreshToken = cookieToken || bodyToken || headerToken
 
-    if (!refreshToken) {
+    if (!refreshToken || typeof refreshToken !== 'string') {
       return reply.status(401).send({ success: false, error: 'Refresh token required' })
     }
 
+    const currentHash = hashToken(refreshToken)
+
     // HIGH-2: Hash the token value before DB lookup so we never store/compare plaintext.
     const session = await prisma.session.findUnique({
-      where: { refreshTokenHash: hashToken(refreshToken) },
+      where: { refreshTokenHash: currentHash },
       include: {
         user: {
           select: {
@@ -483,18 +517,23 @@ export default async function authRoutes(app: FastifyInstance) {
     const newRefreshToken = randomBytes(64).toString('hex')
     const newRefreshTokenHash = hashToken(newRefreshToken)
 
-    const newAccessToken = app.jwt.sign({
-      userId: session.user.id,
-      role: session.user.role,
-      sessionId: session.id,
-    })
-
-    await prisma.session.update({
-      where: { id: session.id },
+    // Atomic conditional rotation prevents concurrent replay of an already-rotated token
+    const rotated = await prisma.session.updateMany({
+      where: { id: session.id, isActive: true, refreshTokenHash: currentHash },
       data: {
         refreshTokenHash: newRefreshTokenHash,
         lastUsedAt: new Date(),
       },
+    })
+
+    if (rotated.count === 0) {
+      return reply.status(401).send({ success: false, error: 'Invalid or already rotated refresh token' })
+    }
+
+    const newAccessToken = app.jwt.sign({
+      userId: session.user.id,
+      role: session.user.role,
+      sessionId: session.id,
     })
 
     const isProd = process.env.NODE_ENV === 'production'
@@ -719,7 +758,9 @@ export default async function authRoutes(app: FastifyInstance) {
   })
 
   // POST /auth/change-password
-  app.post('/change-password', { preHandler: authenticate }, async (request, reply) => {
+  app.post('/change-password', {
+    preHandler: [authenticate, sensitiveRateLimit({ max: 5, timeWindowMs: 15 * 60 * 1000, keyPrefix: 'auth:chg-pwd' })],
+  }, async (request, reply) => {
     const { currentPassword, newPassword } = changePasswordSchema.parse(request.body)
     const userId = request.user.userId
 
@@ -747,7 +788,9 @@ export default async function authRoutes(app: FastifyInstance) {
   })
 
   // POST /auth/2fa/setup
-  app.post('/2fa/setup', { preHandler: authenticate }, async (request, reply) => {
+  app.post('/2fa/setup', {
+    preHandler: [authenticate, sensitiveRateLimit({ max: 5, timeWindowMs: 15 * 60 * 1000, keyPrefix: 'auth:2fa-setup' })],
+  }, async (request, reply) => {
     const userId = request.user.userId
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -772,8 +815,10 @@ export default async function authRoutes(app: FastifyInstance) {
   })
 
   // POST /auth/2fa/confirm
-  app.post('/2fa/confirm', { preHandler: authenticate }, async (request, reply) => {
-    const { token } = request.body as { token: string }
+  app.post('/2fa/confirm', {
+    preHandler: [authenticate, sensitiveRateLimit({ max: 5, timeWindowMs: 10 * 60 * 1000, keyPrefix: 'auth:2fa-confirm' })],
+  }, async (request, reply) => {
+    const { token } = twoFactorConfirmSchema.parse(request.body)
     const userId = request.user.userId
 
     const secret = await redis.get(`2fa_setup:${userId}`)
@@ -783,6 +828,14 @@ export default async function authRoutes(app: FastifyInstance) {
 
     const valid = otplib.authenticator.verify({ token, secret })
     if (!valid) {
+      try {
+        const fails = await redis.incr(`2fa_setup_fail:${userId}`)
+        if (fails === 1) await redis.expire(`2fa_setup_fail:${userId}`, 600)
+        if (fails >= 5) {
+          await redis.del(`2fa_setup:${userId}`)
+          return reply.status(429).send({ success: false, error: 'Too many invalid attempts. Please restart 2FA setup.' })
+        }
+      } catch { /* ignore */ }
       return reply.status(400).send({ success: false, error: 'Invalid code. Try again.' })
     }
 
@@ -792,18 +845,21 @@ export default async function authRoutes(app: FastifyInstance) {
     })
 
     await redis.del(`2fa_setup:${userId}`)
+    try { await redis.del(`2fa_setup_fail:${userId}`) } catch { /* ignore */ }
     await auditLog(userId, '2FA_ENABLED', 'User', userId, undefined, undefined, request)
 
     return reply.send({ success: true, message: 'Two-factor authentication enabled' })
   })
 
   // DELETE /auth/2fa
-  app.delete('/2fa', { preHandler: authenticate }, async (request, reply) => {
-    const { password, token } = request.body as { password: string; token: string }
+  app.delete('/2fa', {
+    preHandler: [authenticate, sensitiveRateLimit({ max: 5, timeWindowMs: 15 * 60 * 1000, keyPrefix: 'auth:2fa-disable' })],
+  }, async (request, reply) => {
+    const { password, token } = twoFactorDeleteSchema.parse(request.body)
     const userId = request.user.userId
 
     const user = await prisma.user.findUnique({ where: { id: userId } })
-    if (!user) return reply.status(404).send({ success: false, error: 'User not found' })
+    if (!user || !user.twoFactorSecret) return reply.status(400).send({ success: false, error: '2FA is not enabled' })
 
     const validPwd = await argon2.verify(user.passwordHash, password)
     if (!validPwd) {
@@ -812,7 +868,7 @@ export default async function authRoutes(app: FastifyInstance) {
 
     const validTOTP = otplib.authenticator.verify({
       token,
-      secret: user.twoFactorSecret!,
+      secret: user.twoFactorSecret,
     })
 
     if (!validTOTP) {

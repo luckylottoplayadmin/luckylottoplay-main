@@ -20,7 +20,7 @@ const gameSchema = z.object({
   minNumbers: z.number().min(1),
   maxNumbers: z.number().min(1),
   numberPool: z.number().min(1),
-  hasPowerball: z.boolean().default(false),
+  hasPowerball: z.boolean(),
   powerballPool: z.number().optional()
 })
 

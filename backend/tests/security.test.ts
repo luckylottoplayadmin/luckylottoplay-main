@@ -8,7 +8,8 @@ import argon2 from 'argon2'
 const { db, redis, mail } = vi.hoisted(() => ({
   db: {
     session: { findUnique: vi.fn(), update: vi.fn(), updateMany: vi.fn() },
-    user: { findUnique: vi.fn(), findFirst: vi.fn(), updateMany: vi.fn() },
+    user: { findUnique: vi.fn(), findFirst: vi.fn(), update: vi.fn(), updateMany: vi.fn(), deleteMany: vi.fn() },
+    role: { findUnique: vi.fn(), update: vi.fn() },
     userRoleMapping: { findMany: vi.fn() },
     systemSetting: { findUnique: vi.fn(), upsert: vi.fn() },
     supportTicket: { findMany: vi.fn(), count: vi.fn() },
@@ -32,6 +33,8 @@ import authRoutes from '../src/routes/auth'
 import paymentRoutes from '../src/routes/payments'
 import walletRoutes from '../src/routes/wallet'
 import adminRoutes from '../src/routes/admin'
+import userRoutes from '../src/routes/users'
+import rbacRoutes from '../src/routes/rbac'
 import { submitCouponTransfer } from '../src/services/couponTransfer'
 
 const apps: FastifyInstance[] = []
@@ -226,5 +229,77 @@ describe('coupon transfer outcomes', () => {
     expect((await instance.inject({ method: 'POST', url: '/wallet/transfers/TRF-test/resolve',
       headers: headers(instance), payload: {} })).statusCode).toBe(403)
     expect(db.$transaction).not.toHaveBeenCalled()
+  })
+})
+
+describe('hardened country lock, admin privilege boundaries, and refresh rotation', () => {
+  it('blocks self-service country changes once country is set or KYC is submitted', async () => {
+    const instance = await app()
+    await instance.register(userRoutes, { prefix: '/users' })
+    db.user.findUnique.mockResolvedValue({ country: 'IN', kycStatus: 'APPROVED' })
+    const res = await instance.inject({
+      method: 'PATCH',
+      url: '/users/me',
+      headers: headers(instance, 'USER'),
+      payload: { country: 'US' },
+    })
+    expect(res.statusCode).toBe(403)
+    expect(res.json().code).toBe('COUNTRY_LOCKED')
+    expect(db.user.update).not.toHaveBeenCalled()
+  })
+
+  it('prevents lower admins from suspending or deleting SUPER_ADMIN accounts via bulk action', async () => {
+    const instance = await app()
+    await instance.register(adminRoutes, { prefix: '/admin' })
+    db.user.findFirst.mockResolvedValue({ id: 'super-1' })
+    const res = await instance.inject({
+      method: 'POST',
+      url: '/admin/users/bulk-action',
+      headers: headers(instance, 'ADMIN'),
+      payload: { userIds: ['super-1'], action: 'SUSPEND' },
+    })
+    expect(res.statusCode).toBe(403)
+    expect(db.user.updateMany).not.toHaveBeenCalled()
+  })
+
+  it('rejects unwhitelisted mass-assignment fields on PATCH /rbac/:id', async () => {
+    const instance = await app()
+    await instance.register(rbacRoutes, { prefix: '/rbac' })
+    const res = await instance.inject({
+      method: 'PATCH',
+      url: '/rbac/role-1',
+      headers: headers(instance, 'SUPER_ADMIN'),
+      payload: { name: 'Editor', users: { deleteMany: {} } },
+    })
+    expect(res.statusCode).toBeGreaterThanOrEqual(400)
+    expect(db.role.update).not.toHaveBeenCalled()
+  })
+
+  it('blocks cross-origin POST /auth/refresh in production and rejects concurrent token replay', async () => {
+    vi.stubEnv('NODE_ENV', 'production')
+    vi.stubEnv('ALLOWED_ORIGINS', 'https://luckylottoplay.live')
+    const instance = await app()
+    await instance.register(authRoutes, { prefix: '/auth' })
+
+    const crossOrigin = await instance.inject({
+      method: 'POST',
+      url: '/auth/refresh',
+      headers: { origin: 'https://sub.luckylottoplay.live', cookie: '__Host-refresh=raw-token' },
+    })
+    expect(crossOrigin.statusCode).toBe(403)
+
+    db.session.findUnique.mockResolvedValue({
+      id: 'session-1',
+      isActive: true,
+      expiresAt: new Date(Date.now() + 60_000),
+      user: { id: 'user-1', email: 'u@example.com', username: 'u', firstName: 'U', lastName: 'L', role: 'USER', status: 'ACTIVE' },
+    })
+    db.session.updateMany.mockResolvedValueOnce({ count: 0 })
+    const replayed = await instance.inject({
+      method: 'POST',
+      url: '/auth/refresh',
+      headers: { origin: 'https://luckylottoplay.live', cookie: '__Host-refresh=already-rotated' },
+    })
+    expect(replayed.statusCode).toBe(401)
   })
 })

@@ -37,6 +37,35 @@ export interface SensitiveRateLimitOptions {
   keyPrefix: string
 }
 
+function isPrivateProxyIp(ip: string): boolean {
+  const clean = ip.startsWith('::ffff:') ? ip.slice(7) : ip
+  return (
+    clean === '127.0.0.1' ||
+    clean === '::1' ||
+    clean.startsWith('10.') ||
+    clean.startsWith('192.168.') ||
+    /^172\.(1[6-9]|2\d|3[0-1])\./.test(clean) ||
+    clean.startsWith('fc') ||
+    clean.startsWith('fd')
+  )
+}
+
+/**
+ * Safely resolve client IP: trust Cloudflare's edge-overwritten CF-Connecting-IP
+ * ONLY when the immediate TCP peer (request.ip) is an internal private ingress proxy,
+ * preventing direct-to-origin header spoofing.
+ */
+export function resolveClientIp(request: FastifyRequest): string {
+  const peerIp = request.ip || '127.0.0.1'
+  if (isPrivateProxyIp(peerIp)) {
+    const cfIp = request.headers['cf-connecting-ip']
+    if (typeof cfIp === 'string' && cfIp.trim().length > 0 && cfIp.length <= 64) {
+      return cfIp.trim()
+    }
+  }
+  return peerIp
+}
+
 export function sensitiveRateLimit(options: SensitiveRateLimitOptions) {
   const { max, timeWindowMs, keyPrefix } = options
 
@@ -46,8 +75,11 @@ export function sensitiveRateLimit(options: SensitiveRateLimitOptions) {
       return
     }
 
-    const clientIp = request.ip || '127.0.0.1'
-    const key = `${keyPrefix}:${clientIp}`
+    const userId = (request as any).user?.userId
+    const actorKey = typeof userId === 'string' && userId.length > 0
+      ? `user:${userId}`
+      : `ip:${resolveClientIp(request)}`
+    const key = `${keyPrefix}:${actorKey}`
     const now = Date.now()
 
     let record = memoryStore.get(key)

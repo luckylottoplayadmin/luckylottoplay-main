@@ -365,7 +365,8 @@ export default async function walletRoutes(app: FastifyInstance) {
   // GET /wallet/deposits - Deposit history
   app.get('/deposits', { preHandler: authenticate }, async (request, reply) => {
     const { page = '1', limit = '20' } = request.query as Record<string, string>
-    const skip = (Number(page) - 1) * Number(limit)
+    const limitNum = Math.min(Math.max(1, Number(limit) || 20), 100)
+    const skip = (Math.max(1, Number(page) || 1) - 1) * limitNum
 
     const wallet = await prisma.wallet.findUnique({
       where: { userId: request.user.userId },
@@ -379,7 +380,7 @@ export default async function walletRoutes(app: FastifyInstance) {
         where: { walletId: wallet.id },
         orderBy: { createdAt: 'desc' },
         skip,
-        take: Number(limit),
+        take: limitNum,
       }),
       prisma.deposit.count({ where: { walletId: wallet.id } }),
     ])
@@ -387,14 +388,15 @@ export default async function walletRoutes(app: FastifyInstance) {
     return reply.send({
       success: true,
       data: deposits,
-      pagination: { page: Number(page), limit: Number(limit), total, pages: Math.ceil(total / Number(limit)) },
+      pagination: { page: Math.max(1, Number(page) || 1), limit: limitNum, total, pages: Math.ceil(total / limitNum) },
     })
   })
 
   // GET /wallet/withdrawals - Withdrawal history
   app.get('/withdrawals', { preHandler: authenticate }, async (request, reply) => {
     const { page = '1', limit = '20' } = request.query as Record<string, string>
-    const skip = (Number(page) - 1) * Number(limit)
+    const limitNum = Math.min(Math.max(1, Number(limit) || 20), 100)
+    const skip = (Math.max(1, Number(page) || 1) - 1) * limitNum
 
     const wallet = await prisma.wallet.findUnique({
       where: { userId: request.user.userId },
@@ -408,7 +410,7 @@ export default async function walletRoutes(app: FastifyInstance) {
         where: { walletId: wallet.id },
         orderBy: { createdAt: 'desc' },
         skip,
-        take: Number(limit),
+        take: limitNum,
         select: {
           id: true,
           amount: true,
@@ -424,14 +426,15 @@ export default async function walletRoutes(app: FastifyInstance) {
     return reply.send({
       success: true,
       data: withdrawals,
-      pagination: { page: Number(page), limit: Number(limit), total, pages: Math.ceil(total / Number(limit)) },
+      pagination: { page: Math.max(1, Number(page) || 1), limit: limitNum, total, pages: Math.ceil(total / limitNum) },
     })
   })
 
   // POST /wallet/redeem - Redeem a coupon code
   app.post('/redeem', {
-    // Limit guessing of coupon codes per client
-    preHandler: [authenticate, requireVerifiedEmail, sensitiveRateLimit({ max: 10, timeWindowMs: 15 * 60 * 1000, keyPrefix: 'wallet:redeem' })],
+    // Limit guessing of coupon codes per user/client and protect shared outbound Coupon World IP quota
+    preHandler: [authenticate, requireVerifiedEmail, sensitiveRateLimit({ max: 6, timeWindowMs: 15 * 60 * 1000, keyPrefix: 'wallet:redeem' })],
+    config: { rateLimit: { max: 6, timeWindow: '15 minutes' } },
   }, async (request, reply) => {
     const body = redeemSchema.parse(request.body)
     const userId = request.user.userId

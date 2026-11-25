@@ -268,26 +268,52 @@ export default async function adminRoutes(app: FastifyInstance) {
 
   app.patch('/users/:id/status', async (request, reply) => {
     const { id } = request.params as { id: string }
-    const { status, reason } = request.body as { status: string; reason?: string }
+    const { status, reason } = z.object({
+      status: z.enum(['ACTIVE', 'SUSPENDED', 'BANNED']),
+      reason: z.string().max(500).optional(),
+    }).parse(request.body)
 
-    const oldUser = await prisma.user.findUnique({ where: { id }, select: { status: true } })
+    if (id === request.user.userId && status !== 'ACTIVE') {
+      return reply.status(403).send({ success: false, error: 'You cannot suspend or ban your own account' })
+    }
 
-    await prisma.user.update({ where: { id }, data: { status: status as any } })
+    const oldUser = await prisma.user.findUnique({ where: { id }, select: { status: true, role: true } })
+    if (!oldUser) return reply.status(404).send({ success: false, error: 'User not found' })
+    if (oldUser.role === 'SUPER_ADMIN' && request.user.role !== 'SUPER_ADMIN') {
+      return reply.status(403).send({ success: false, error: 'Only a Super Admin can modify another Super Admin account' })
+    }
+
+    await prisma.user.update({ where: { id }, data: { status } })
 
     if (status === 'BANNED' || status === 'SUSPENDED') {
       await prisma.session.updateMany({ where: { userId: id }, data: { isActive: false } })
     }
 
-    await auditLog(request.user.userId, 'USER_STATUS_CHANGED', 'User', id, { oldStatus: oldUser?.status }, { newStatus: status, reason }, request)
+    await auditLog(request.user.userId, 'USER_STATUS_CHANGED', 'User', id, { oldStatus: oldUser.status }, { newStatus: status, reason }, request)
 
     return reply.send({ success: true, message: `User status changed to ${status}` })
   })
 
   // POST /users/bulk-action - Bulk suspend/activate/delete
   app.post('/users/bulk-action', async (request, reply) => {
-    const { userIds, action } = request.body as { userIds: string[]; action: 'SUSPEND' | 'ACTIVATE' | 'DELETE' }
-    
-    if (!userIds || userIds.length === 0) return reply.status(400).send({ success: false, error: 'No users selected' })
+    const { userIds, action } = z.object({
+      userIds: z.array(z.string().min(1)).min(1).max(200),
+      action: z.enum(['SUSPEND', 'ACTIVATE', 'DELETE']),
+    }).parse(request.body)
+
+    if (action !== 'ACTIVATE' && userIds.includes(request.user.userId)) {
+      return reply.status(403).send({ success: false, error: 'Bulk action cannot target your own account' })
+    }
+
+    if (request.user.role !== 'SUPER_ADMIN' || action === 'DELETE') {
+      const protectedUser = await prisma.user.findFirst({
+        where: { id: { in: userIds }, role: 'SUPER_ADMIN' },
+        select: { id: true },
+      })
+      if (protectedUser) {
+        return reply.status(403).send({ success: false, error: 'Super Admin accounts cannot be deleted or modified via bulk action' })
+      }
+    }
 
     if (action === 'DELETE') {
       await prisma.user.deleteMany({ where: { id: { in: userIds } } })
@@ -309,38 +335,53 @@ export default async function adminRoutes(app: FastifyInstance) {
   // POST /users/:id/wallet/adjust - Manual wallet adjustment
   app.post('/users/:id/wallet/adjust', async (request, reply) => {
     const { id } = request.params as { id: string }
-    const { amount, reason, type } = request.body as { amount: number; reason: string; type: 'CREDIT' | 'DEBIT' }
+    const { amount, reason, type } = z.object({
+      amount: z.number().positive().max(1_000_000),
+      reason: z.string().trim().min(1).max(500),
+      type: z.enum(['CREDIT', 'DEBIT']),
+    }).parse(request.body)
 
-    if (amount <= 0) return reply.status(400).send({ success: false, error: 'Amount must be positive' })
-
-    const user = await prisma.user.findUnique({ where: { id }, include: { wallet: true } })
+    const user = await prisma.user.findUnique({ where: { id }, select: { id: true, wallet: { select: { id: true } } } })
     if (!user || !user.wallet) return reply.status(404).send({ success: false, error: 'User or wallet not found' })
 
-    if (type === 'DEBIT' && user.wallet.balance.toNumber() < amount) {
-      return reply.status(400).send({ success: false, error: 'Insufficient balance for debit' })
-    }
-
-    const newBalance = type === 'CREDIT' ? user.wallet.balance.toNumber() + amount : user.wallet.balance.toNumber() - amount
-
-    await prisma.$transaction(async (tx) => {
-      await tx.wallet.update({
-        where: { id: user.wallet!.id },
-        data: { balance: newBalance }
-      })
-
-      await tx.transaction.create({
-        data: {
-          userId: id,
-          walletId: user.wallet!.id,
-          type: type === 'CREDIT' ? 'BONUS_CREDIT' : 'WITHDRAWAL',
-          amount: amount,
-          balanceBefore: user.wallet!.balance,
-          balanceAfter: newBalance,
-          status: 'COMPLETED',
-          reference: `Admin Adjustment: ${reason}`
+    let newBalance = 0
+    try {
+      await prisma.$transaction(async (tx) => {
+        const [locked] = await tx.$queryRaw<Array<{ id: string; balance: any }>>`
+          SELECT id, balance FROM wallets WHERE id = ${user.wallet!.id} FOR UPDATE
+        `
+        if (!locked) throw Object.assign(new Error('Wallet not found'), { statusCode: 404 })
+        const balBefore = Number(locked.balance)
+        if (type === 'DEBIT' && balBefore < amount) {
+          throw Object.assign(new Error('Insufficient balance for debit'), { statusCode: 400 })
         }
+        newBalance = type === 'CREDIT' ? balBefore + amount : balBefore - amount
+
+        await tx.wallet.update({
+          where: { id: user.wallet!.id },
+          data: { balance: type === 'CREDIT' ? { increment: amount } : { decrement: amount } }
+        })
+
+        await tx.transaction.create({
+          data: {
+            userId: id,
+            walletId: user.wallet!.id,
+            type: type === 'CREDIT' ? 'BONUS_CREDIT' : 'WITHDRAWAL',
+            amount: type === 'DEBIT' ? -amount : amount,
+            balanceBefore: balBefore,
+            balanceAfter: newBalance,
+            status: 'COMPLETED',
+            reference: `ADJ-${crypto.randomBytes(6).toString('hex').toUpperCase()}`,
+            description: `Admin Adjustment: ${reason}`,
+          }
+        })
       })
-    })
+    } catch (err: any) {
+      if (err?.statusCode === 400 || err?.statusCode === 404) {
+        return reply.status(err.statusCode).send({ success: false, error: err.message })
+      }
+      throw err
+    }
 
     await auditLog(request.user.userId, 'WALLET_ADJUSTED', 'Wallet', user.wallet.id, undefined, { type, amount, reason }, request)
 
@@ -351,7 +392,11 @@ export default async function adminRoutes(app: FastifyInstance) {
 
   app.get('/kyc', async (request, reply) => {
     const { page = '1', limit = '10', search, status, documentType, sortField = 'submittedAt', sortDir = 'desc' } = request.query as Record<string, string>
-    const skip = (Number(page) - 1) * Number(limit)
+    const limitNum = Math.min(Math.max(1, Number(limit) || 10), 100)
+    const skip = (Math.max(1, Number(page) || 1) - 1) * limitNum
+    const ALLOWED_KYC_SORT = ['submittedAt', 'reviewedAt', 'status', 'documentType']
+    const safeSortField = ALLOWED_KYC_SORT.includes(sortField) ? sortField : 'submittedAt'
+    const safeSortDir = sortDir === 'asc' ? 'asc' : 'desc'
 
     const where: any = {}
     if (status) where.status = status
@@ -374,8 +419,8 @@ export default async function adminRoutes(app: FastifyInstance) {
       prisma.kYCRecord.findMany({
         where,
         skip,
-        take: Number(limit),
-        orderBy: { [sortField]: sortDir },
+        take: limitNum,
+        orderBy: { [safeSortField]: safeSortDir },
         include: {
           user: { select: { id: true, email: true, username: true, firstName: true, lastName: true, country: true } },
         },
@@ -388,7 +433,7 @@ export default async function adminRoutes(app: FastifyInstance) {
     ])
 
     const stats = { totalRequests, pendingReview, approvedToday, rejectedToday }
-    return reply.send({ success: true, data: records.map(redactKycRecord), pagination: { page: Number(page), limit: Number(limit), total, pages: Math.ceil(total / Number(limit)) }, stats })
+    return reply.send({ success: true, data: records.map(redactKycRecord), pagination: { page: Math.max(1, Number(page) || 1), limit: limitNum, total, pages: Math.ceil(total / limitNum) }, stats })
   })
 
   app.get('/kyc/:id', async (request, reply) => {
@@ -397,9 +442,30 @@ export default async function adminRoutes(app: FastifyInstance) {
       where: { id },
       include: {
         user: {
-          include: {
+          select: {
+            id: true,
+            email: true,
+            username: true,
+            firstName: true,
+            lastName: true,
+            dateOfBirth: true,
+            phone: true,
+            role: true,
+            status: true,
+            emailVerified: true,
+            kycStatus: true,
+            country: true,
+            state: true,
+            city: true,
+            address: true,
+            postcode: true,
+            createdAt: true,
+            lastLoginAt: true,
             wallet: true,
-            sessions: { where: { isActive: true } },
+            sessions: {
+              where: { isActive: true },
+              select: { id: true, ipAddress: true, userAgent: true, deviceName: true, lastUsedAt: true, createdAt: true },
+            },
             kycRecords: { orderBy: { submittedAt: 'desc' } }
           }
         }
@@ -408,8 +474,9 @@ export default async function adminRoutes(app: FastifyInstance) {
     if (!record) return reply.status(404).send({ success: false, error: 'KYC Record not found' })
     reply.header('Cache-Control', 'private, no-store')
     const signed = await signKycRecord(record)
-    return reply.send({ success: true, data: { ...signed, user: { ...signed.user,
-      kycRecords: signed.user.kycRecords.map(redactKycRecord) } } })
+    const { passwordHash: _ph, twoFactorSecret: _tfa, ...safeUser } = (signed.user || {}) as any
+    return reply.send({ success: true, data: { ...signed, user: { ...safeUser,
+      kycRecords: (safeUser.kycRecords || []).map(redactKycRecord) } } })
   })
 
   app.patch('/kyc/:id/review', async (request, reply) => {
@@ -552,7 +619,11 @@ export default async function adminRoutes(app: FastifyInstance) {
 
   app.get('/withdrawals', async (request, reply) => {
     const { page = '1', limit = '20', search, status, sortField = 'createdAt', sortDir = 'desc' } = request.query as Record<string, string>
-    const skip = (Number(page) - 1) * Number(limit)
+    const limitNum = Math.min(Math.max(1, Number(limit) || 20), 100)
+    const skip = (Math.max(1, Number(page) || 1) - 1) * limitNum
+    const ALLOWED_WITHDRAWAL_SORT = ['createdAt', 'amount', 'status', 'processedAt', 'gateway']
+    const safeSortField = ALLOWED_WITHDRAWAL_SORT.includes(sortField) ? sortField : 'createdAt'
+    const safeSortDir = sortDir === 'asc' ? 'asc' : 'desc'
 
     const where: any = {}
     if (status) where.status = status
@@ -568,8 +639,8 @@ export default async function adminRoutes(app: FastifyInstance) {
       prisma.withdrawal.findMany({
         where,
         skip,
-        take: Number(limit),
-        orderBy: { [sortField]: sortDir },
+        take: limitNum,
+        orderBy: { [safeSortField]: safeSortDir },
         include: {
           wallet: {
             include: { user: { select: { id: true, username: true, email: true, country: true } } }
@@ -584,7 +655,7 @@ export default async function adminRoutes(app: FastifyInstance) {
       })
     ])
 
-    return reply.send({ success: true, data: withdrawals, pagination: { page: Number(page), limit: Number(limit), total }, stats })
+    return reply.send({ success: true, data: withdrawals, pagination: { page: Math.max(1, Number(page) || 1), limit: limitNum, total }, stats })
   })
 
   app.get('/withdrawals/:id', async (request, reply) => {
@@ -593,7 +664,22 @@ export default async function adminRoutes(app: FastifyInstance) {
       where: { id },
       include: {
         wallet: {
-          include: { user: true }
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                username: true,
+                firstName: true,
+                lastName: true,
+                phone: true,
+                country: true,
+                kycStatus: true,
+                status: true,
+                createdAt: true,
+              }
+            }
+          }
         }
       }
     })
@@ -603,58 +689,76 @@ export default async function adminRoutes(app: FastifyInstance) {
 
   app.patch('/withdrawals/:id/status', async (request, reply) => {
     const { id } = request.params as { id: string }
-    const { status, reviewNotes } = request.body as { status: 'COMPLETED' | 'FAILED' | 'CANCELLED' | 'PENDING', reviewNotes?: string }
+    const { status, reviewNotes } = z.object({
+      status: z.enum(['COMPLETED', 'FAILED', 'CANCELLED', 'PENDING']),
+      reviewNotes: z.string().max(1000).optional(),
+    }).parse(request.body)
 
-    const withdrawal = await prisma.withdrawal.findUnique({
-      where: { id },
-      include: { wallet: true }
-    })
-    
-    if (!withdrawal) return reply.status(404).send({ success: false, error: 'Withdrawal not found' })
-
-    const updated = await prisma.$transaction(async (tx) => {
-      // If rejecting, we must refund the user's balance
-      if (status === 'CANCELLED' && withdrawal.status !== 'CANCELLED') {
-        await tx.wallet.update({
-          where: { id: withdrawal.walletId },
-          data: {
-            balance: { increment: withdrawal.amount },
-            pendingBalance: { decrement: withdrawal.amount }
-          }
+    try {
+      const updated = await prisma.$transaction(async (tx) => {
+        const current = await tx.withdrawal.findUnique({
+          where: { id },
+          select: { id: true, status: true, amount: true, walletId: true }
         })
-      }
-      
-      // If completing, we finalize deduction
-      if (status === 'COMPLETED' && withdrawal.status !== 'COMPLETED') {
-        await tx.wallet.update({
-          where: { id: withdrawal.walletId },
-          data: {
-            pendingBalance: { decrement: withdrawal.amount },
-            totalWithdrawn: { increment: withdrawal.amount }
-          }
-        })
-      }
-
-      return tx.withdrawal.update({
-        where: { id },
-        data: {
-          status,
-          reviewNotes,
-          reviewedById: request.user.userId,
-          processedAt: ['COMPLETED', 'FAILED', 'CANCELLED'].includes(status) ? new Date() : undefined
+        if (!current) throw Object.assign(new Error('Withdrawal not found'), { statusCode: 404 })
+        if (current.status === status) {
+          return tx.withdrawal.findUniqueOrThrow({ where: { id } })
         }
-      })
-    })
 
-    await auditLog(request.user.userId, `WITHDRAWAL_${status}`, 'Withdrawal', id, undefined, { amount: updated.amount, reviewNotes }, request)
-    return reply.send({ success: true, data: updated })
+        await tx.$queryRaw`SELECT id FROM wallets WHERE id = ${current.walletId} FOR UPDATE`
+
+        const { count } = await tx.withdrawal.updateMany({
+          where: { id, status: current.status },
+          data: {
+            status,
+            reviewNotes,
+            reviewedById: request.user.userId,
+            processedAt: ['COMPLETED', 'FAILED', 'CANCELLED'].includes(status) ? new Date() : undefined
+          }
+        })
+        if (count === 0) throw Object.assign(new Error('Concurrent withdrawal update conflict'), { statusCode: 409 })
+
+        // Refund reserved pendingBalance if rejecting/cancelling a PENDING withdrawal
+        if ((status === 'CANCELLED' || status === 'FAILED') && current.status === 'PENDING') {
+          await tx.wallet.update({
+            where: { id: current.walletId },
+            data: {
+              balance: { increment: current.amount },
+              pendingBalance: { decrement: current.amount }
+            }
+          })
+        } else if (status === 'COMPLETED' && current.status === 'PENDING') {
+          await tx.wallet.update({
+            where: { id: current.walletId },
+            data: {
+              pendingBalance: { decrement: current.amount },
+              totalWithdrawn: { increment: current.amount }
+            }
+          })
+        }
+
+        return tx.withdrawal.findUniqueOrThrow({ where: { id } })
+      })
+
+      await auditLog(request.user.userId, `WITHDRAWAL_${status}`, 'Withdrawal', id, undefined, { amount: updated.amount, reviewNotes }, request)
+      return reply.send({ success: true, data: updated })
+    } catch (err: any) {
+      if (err?.statusCode === 404 || err?.statusCode === 409) {
+        return reply.status(err.statusCode).send({ success: false, error: err.message })
+      }
+      throw err
+    }
   })
 
   // ── Deposit Management ───────────────────────────────────────────────────
 
   app.get('/deposits', async (request, reply) => {
     const { page = '1', limit = '20', search, status, sortField = 'createdAt', sortDir = 'desc' } = request.query as Record<string, string>
-    const skip = (Number(page) - 1) * Number(limit)
+    const limitNum = Math.min(Math.max(1, Number(limit) || 20), 100)
+    const skip = (Math.max(1, Number(page) || 1) - 1) * limitNum
+    const ALLOWED_DEPOSIT_SORT = ['createdAt', 'amount', 'status', 'processedAt', 'gateway']
+    const safeSortField = ALLOWED_DEPOSIT_SORT.includes(sortField) ? sortField : 'createdAt'
+    const safeSortDir = sortDir === 'asc' ? 'asc' : 'desc'
 
     const where: any = {}
     if (status) where.status = status
@@ -671,8 +775,8 @@ export default async function adminRoutes(app: FastifyInstance) {
       prisma.deposit.findMany({
         where,
         skip,
-        take: Number(limit),
-        orderBy: { [sortField]: sortDir },
+        take: limitNum,
+        orderBy: { [safeSortField]: safeSortDir },
         include: {
           wallet: {
             include: { user: { select: { id: true, username: true, email: true, country: true } } }
@@ -687,7 +791,7 @@ export default async function adminRoutes(app: FastifyInstance) {
       })
     ])
 
-    return reply.send({ success: true, data: deposits, pagination: { page: Number(page), limit: Number(limit), total }, stats })
+    return reply.send({ success: true, data: deposits, pagination: { page: Math.max(1, Number(page) || 1), limit: limitNum, total }, stats })
   })
 
   app.get('/deposits/:id', async (request, reply) => {
@@ -696,7 +800,22 @@ export default async function adminRoutes(app: FastifyInstance) {
       where: { id },
       include: {
         wallet: {
-          include: { user: true }
+          include: {
+            user: {
+              select: {
+                id: true,
+                email: true,
+                username: true,
+                firstName: true,
+                lastName: true,
+                phone: true,
+                country: true,
+                kycStatus: true,
+                status: true,
+                createdAt: true,
+              }
+            }
+          }
         }
       }
     })
@@ -706,101 +825,136 @@ export default async function adminRoutes(app: FastifyInstance) {
 
   app.patch('/deposits/:id/status', async (request, reply) => {
     const { id } = request.params as { id: string }
-    const { status, reviewNotes } = request.body as { status: 'COMPLETED' | 'FAILED' | 'CANCELLED' | 'PENDING', reviewNotes?: string }
+    const { status, reviewNotes } = z.object({
+      status: z.enum(['COMPLETED', 'FAILED', 'CANCELLED', 'PENDING']),
+      reviewNotes: z.string().max(1000).optional(),
+    }).parse(request.body)
 
-    const deposit = await prisma.deposit.findUnique({
-      where: { id },
-      include: { wallet: true }
-    })
-    
-    if (!deposit) return reply.status(404).send({ success: false, error: 'Deposit not found' })
-
-    const updated = await prisma.$transaction(async (tx) => {
-      // If we are forcing a pending/failed deposit to completed
-      if (status === 'COMPLETED' && deposit.status !== 'COMPLETED') {
-        await tx.wallet.update({
-          where: { id: deposit.walletId },
-          data: {
-            balance: { increment: deposit.amount },
-            totalDeposited: { increment: deposit.amount }
-          }
+    try {
+      const updated = await prisma.$transaction(async (tx) => {
+        const current = await tx.deposit.findUnique({
+          where: { id },
+          select: { id: true, status: true, amount: true, walletId: true }
         })
-      }
-      
-      // If we are reversing a completed deposit
-      if ((status === 'FAILED' || status === 'CANCELLED') && deposit.status === 'COMPLETED') {
-        await tx.wallet.update({
-          where: { id: deposit.walletId },
-          data: {
-            balance: { decrement: deposit.amount },
-            totalDeposited: { decrement: deposit.amount }
-          }
-        })
-      }
-
-      return tx.deposit.update({
-        where: { id },
-        data: {
-          status,
-          processedAt: ['COMPLETED', 'FAILED', 'CANCELLED'].includes(status) ? new Date() : undefined
+        if (!current) throw Object.assign(new Error('Deposit not found'), { statusCode: 404 })
+        if (current.status === status) {
+          return tx.deposit.findUniqueOrThrow({ where: { id } })
         }
-      })
-    })
 
-    await auditLog(request.user.userId, `DEPOSIT_${status}`, 'Deposit', id, undefined, { amount: updated.amount, reviewNotes }, request)
-    return reply.send({ success: true, data: updated })
+        const [locked] = await tx.$queryRaw<Array<{ id: string; balance: any }>>`
+          SELECT id, balance FROM wallets WHERE id = ${current.walletId} FOR UPDATE
+        `
+        if (!locked) throw Object.assign(new Error('Wallet not found'), { statusCode: 404 })
+
+        if ((status === 'FAILED' || status === 'CANCELLED') && current.status === 'COMPLETED') {
+          if (Number(locked.balance) < Number(current.amount)) {
+            throw Object.assign(new Error('Insufficient wallet balance to reverse completed deposit'), { statusCode: 400 })
+          }
+        }
+
+        const { count } = await tx.deposit.updateMany({
+          where: { id, status: current.status },
+          data: {
+            status,
+            processedAt: ['COMPLETED', 'FAILED', 'CANCELLED'].includes(status) ? new Date() : undefined
+          }
+        })
+        if (count === 0) throw Object.assign(new Error('Concurrent deposit update conflict'), { statusCode: 409 })
+
+        if (status === 'COMPLETED' && current.status !== 'COMPLETED') {
+          await tx.wallet.update({
+            where: { id: current.walletId },
+            data: {
+              balance: { increment: current.amount },
+              totalDeposited: { increment: current.amount }
+            }
+          })
+        } else if ((status === 'FAILED' || status === 'CANCELLED') && current.status === 'COMPLETED') {
+          await tx.wallet.update({
+            where: { id: current.walletId },
+            data: {
+              balance: { decrement: current.amount },
+              totalDeposited: { decrement: current.amount }
+            }
+          })
+        }
+
+        return tx.deposit.findUniqueOrThrow({ where: { id } })
+      })
+
+      await auditLog(request.user.userId, `DEPOSIT_${status}`, 'Deposit', id, undefined, { amount: updated.amount, reviewNotes }, request)
+      return reply.send({ success: true, data: updated })
+    } catch (err: any) {
+      if ([400, 404, 409].includes(err?.statusCode)) {
+        return reply.status(err.statusCode).send({ success: false, error: err.message })
+      }
+      throw err
+    }
   })
 
   // ── Wallet Management ──────────────────────────────────────────────────────
 
   app.post('/wallets/:id/adjustment', async (request, reply) => {
     const { id } = request.params as { id: string }
-    const { amount, type, reason } = request.body as { amount: number, type: 'CREDIT' | 'DEBIT' | 'BONUS', reason: string }
+    const { amount, type, reason } = z.object({
+      amount: z.number().positive().max(1_000_000),
+      type: z.enum(['CREDIT', 'DEBIT', 'BONUS']),
+      reason: z.string().trim().min(1).max(500),
+    }).parse(request.body)
 
-    if (!amount || amount <= 0) return reply.status(400).send({ success: false, error: 'Invalid amount' })
+    try {
+      await prisma.$transaction(async (tx) => {
+        const [locked] = await tx.$queryRaw<Array<{ id: string; userId: string; balance: any; bonusBalance: any }>>`
+          SELECT id, "userId", balance, "bonusBalance" FROM wallets WHERE id = ${id} FOR UPDATE
+        `
+        if (!locked) throw Object.assign(new Error('Wallet not found'), { statusCode: 404 })
 
-    const wallet = await prisma.wallet.findUnique({ where: { id } })
-    if (!wallet) return reply.status(404).send({ success: false, error: 'Wallet not found' })
+        const data: any = {}
+        let balanceBefore = 0
+        let balanceAfter = 0
 
-    await prisma.$transaction(async (tx) => {
-      const data: any = {}
-      let balanceBefore = 0
-      let balanceAfter = 0
-
-      if (type === 'CREDIT') {
-        balanceBefore = Number(wallet.balance)
-        balanceAfter = balanceBefore + amount
-        data.balance = { increment: amount }
-      } else if (type === 'DEBIT') {
-        balanceBefore = Number(wallet.balance)
-        if (balanceBefore < amount) throw new Error('Insufficient available balance')
-        balanceAfter = balanceBefore - amount
-        data.balance = { decrement: amount }
-      } else if (type === 'BONUS') {
-        balanceBefore = Number(wallet.bonusBalance)
-        balanceAfter = balanceBefore + amount
-        data.bonusBalance = { increment: amount }
-      }
-
-      await tx.wallet.update({
-        where: { id },
-        data
-      })
-
-      await tx.transaction.create({
-        data: {
-          userId: wallet.userId,
-          walletId: id,
-          type: type === 'BONUS' ? 'BONUS_CREDIT' : type === 'CREDIT' ? 'DEPOSIT' : 'WITHDRAWAL',
-          status: 'COMPLETED',
-          amount: type === 'DEBIT' ? -amount : amount,
-          balanceBefore,
-          balanceAfter,
-          reference: `ADJ-${crypto.randomBytes(4).toString('hex').toUpperCase()}`,
-          description: `Admin Adjustment: ${reason}`
+        if (type === 'CREDIT') {
+          balanceBefore = Number(locked.balance)
+          balanceAfter = balanceBefore + amount
+          data.balance = { increment: amount }
+        } else if (type === 'DEBIT') {
+          balanceBefore = Number(locked.balance)
+          if (balanceBefore < amount) {
+            throw Object.assign(new Error('Insufficient available balance'), { statusCode: 400 })
+          }
+          balanceAfter = balanceBefore - amount
+          data.balance = { decrement: amount }
+        } else if (type === 'BONUS') {
+          balanceBefore = Number(locked.bonusBalance ?? 0)
+          balanceAfter = balanceBefore + amount
+          data.bonusBalance = { increment: amount }
         }
+
+        await tx.wallet.update({
+          where: { id },
+          data
+        })
+
+        await tx.transaction.create({
+          data: {
+            userId: locked.userId,
+            walletId: id,
+            type: type === 'BONUS' ? 'BONUS_CREDIT' : type === 'CREDIT' ? 'DEPOSIT' : 'WITHDRAWAL',
+            status: 'COMPLETED',
+            amount: type === 'DEBIT' ? -amount : amount,
+            balanceBefore,
+            balanceAfter,
+            reference: `ADJ-${crypto.randomBytes(6).toString('hex').toUpperCase()}`,
+            description: `Admin Adjustment: ${reason}`
+          }
+        })
       })
-    })
+    } catch (err: any) {
+      if (err?.statusCode === 400 || err?.statusCode === 404) {
+        return reply.status(err.statusCode).send({ success: false, error: err.message })
+      }
+      throw err
+    }
 
     await auditLog(request.user.userId, `WALLET_ADJUSTMENT`, 'Wallet', id, undefined, { amount, type, reason }, request)
     return reply.send({ success: true, message: 'Wallet adjusted successfully' })
@@ -824,7 +978,10 @@ export default async function adminRoutes(app: FastifyInstance) {
 
   app.get('/draws', async (request, reply) => {
     const { page = '1', limit = '10', search, status, hideCompleted, sortField, sortDir } = request.query as Record<string, string>
-    const skip = (Number(page) - 1) * Number(limit)
+    const limitNum = Math.min(Math.max(1, Number(limit) || 10), 100)
+    const skip = (Math.max(1, Number(page) || 1) - 1) * limitNum
+    const ALLOWED_DRAW_SORT = ['scheduledAt', 'drawNumber', 'status', 'jackpotAmount', 'totalSales', 'drawnAt']
+    const safeSortDir = sortDir === 'asc' ? 'asc' : 'desc'
 
     const where: any = {}
     if (status) {
@@ -841,8 +998,8 @@ export default async function adminRoutes(app: FastifyInstance) {
     }
 
     let orderBy: any = []
-    if (sortField && sortDir) {
-      orderBy = [{ [sortField]: sortDir }]
+    if (sortField && ALLOWED_DRAW_SORT.includes(sortField) && sortDir) {
+      orderBy = [{ [sortField]: safeSortDir }]
     } else if (status === 'SCHEDULED') {
       orderBy = [{ scheduledAt: 'asc' }]
     } else if (status === 'COMPLETED') {
@@ -859,7 +1016,7 @@ export default async function adminRoutes(app: FastifyInstance) {
       prisma.draw.findMany({
         where,
         skip,
-        take: Number(limit),
+        take: limitNum,
         orderBy,
         include: {
           game: { select: { name: true, slug: true, badgeText: true } },
@@ -879,7 +1036,7 @@ export default async function adminRoutes(app: FastifyInstance) {
       scheduledDraws,
       totalSales: totalSales._sum.totalSales || 0 
     }
-    return reply.send({ success: true, data: records, pagination: { page: Number(page), limit: Number(limit), total, pages: Math.ceil(total / Number(limit)) }, stats })
+    return reply.send({ success: true, data: records, pagination: { page: Math.max(1, Number(page) || 1), limit: limitNum, total, pages: Math.ceil(total / limitNum) }, stats })
   })
 
   app.get('/draws/:id', async (request, reply) => {
@@ -949,7 +1106,11 @@ export default async function adminRoutes(app: FastifyInstance) {
 
   app.get('/games', async (request, reply) => {
     const { page = '1', limit = '10', search, status, sortField = 'createdAt', sortDir = 'desc' } = request.query as Record<string, string>
-    const skip = (Number(page) - 1) * Number(limit)
+    const limitNum = Math.min(Math.max(1, Number(limit) || 10), 100)
+    const skip = (Math.max(1, Number(page) || 1) - 1) * limitNum
+    const ALLOWED_GAME_SORT = ['createdAt', 'name', 'slug', 'ticketPrice', 'jackpotAmount', 'sortOrder', 'isActive']
+    const safeSortField = ALLOWED_GAME_SORT.includes(sortField) ? sortField : 'createdAt'
+    const safeSortDir = sortDir === 'asc' ? 'asc' : 'desc'
 
     const where: any = {}
     if (status) where.isActive = status === 'ACTIVE'
@@ -965,8 +1126,8 @@ export default async function adminRoutes(app: FastifyInstance) {
       prisma.game.findMany({
         where,
         skip,
-        take: Number(limit),
-        orderBy: { [sortField]: sortDir },
+        take: limitNum,
+        orderBy: { [safeSortField]: safeSortDir },
         include: {
           _count: { select: { draws: true, tickets: true } }
         },
@@ -983,7 +1144,7 @@ export default async function adminRoutes(app: FastifyInstance) {
       disabledGames: totalGames - activeGames,
       totalJackpots: totalJackpots._sum.jackpotAmount || 0 
     }
-    return reply.send({ success: true, data: records, pagination: { page: Number(page), limit: Number(limit), total, pages: Math.ceil(total / Number(limit)) }, stats })
+    return reply.send({ success: true, data: records, pagination: { page: Math.max(1, Number(page) || 1), limit: limitNum, total, pages: Math.ceil(total / limitNum) }, stats })
   })
 
   app.get('/games/:id', async (request, reply) => {
@@ -1165,7 +1326,8 @@ export default async function adminRoutes(app: FastifyInstance) {
 
   app.get('/audit-logs', async (request, reply) => {
     const { page = '1', limit = '50', userId, action, resource } = request.query as Record<string, string>
-    const skip = (Number(page) - 1) * Number(limit)
+    const limitNum = Math.min(Math.max(1, Number(limit) || 50), 100)
+    const skip = (Math.max(1, Number(page) || 1) - 1) * limitNum
 
     const where: any = {}
     if (userId) where.userId = userId
@@ -1176,14 +1338,14 @@ export default async function adminRoutes(app: FastifyInstance) {
       prisma.auditLog.findMany({
         where,
         skip,
-        take: Number(limit),
+        take: limitNum,
         orderBy: { createdAt: 'desc' },
         include: { user: { select: { email: true, username: true } } },
       }),
       prisma.auditLog.count({ where }),
     ])
 
-    return reply.send({ success: true, data: logs, pagination: { page: Number(page), limit: Number(limit), total } })
+    return reply.send({ success: true, data: logs, pagination: { page: Math.max(1, Number(page) || 1), limit: limitNum, total } })
   })
 
 }

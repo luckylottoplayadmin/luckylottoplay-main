@@ -1,7 +1,36 @@
 import { FastifyInstance } from 'fastify';
+import { z } from 'zod';
 import { prisma } from '../server';
 import { authenticate, requireAdmin, auditLog } from '../middleware/auth';
 import crypto from 'crypto';
+
+const createRoleSchema = z.object({
+  name: z.string().trim().min(1).max(100),
+  description: z.string().max(500).optional().nullable(),
+  department: z.string().max(100).optional().nullable(),
+  priority: z.number().int().min(0).max(1000).optional(),
+}).strict();
+
+const updateRoleSchema = z.object({
+  name: z.string().trim().min(1).max(100).optional(),
+  description: z.string().max(500).optional().nullable(),
+  department: z.string().max(100).optional().nullable(),
+  priority: z.number().int().min(0).max(1000).optional(),
+  isActive: z.boolean().optional(),
+}).strict();
+
+const cloneRoleSchema = z.object({
+  name: z.string().trim().min(1).max(100),
+}).strict();
+
+const updatePermissionsSchema = z.object({
+  permissionIds: z.array(z.string().min(1).max(100)).max(500),
+}).strict();
+
+const assignRoleSchema = z.object({
+  roleId: z.string().min(1).max(100),
+  expiresAt: z.string().datetime().optional().nullable(),
+}).strict();
 
 // CRIT-01 FIX: /rbac/* previously had zero authentication — any anonymous
 // caller could enumerate roles and assign themselves SUPER_ADMIN via
@@ -60,13 +89,13 @@ export default async function rbacRoutes(app: FastifyInstance) {
   });
 
   // Create new role
-  app.post<{ Body: { name: string; description?: string; department?: string; priority?: number } }>(
+  app.post(
     '/',
     async (request, reply) => {
+      const { name, description, department, priority } = createRoleSchema.parse(request.body);
       try {
-        const { name, description, department, priority } = request.body;
         const role = await prisma.role.create({
-          data: { name, description, department, priority: priority || 0 },
+          data: { name, description: description ?? undefined, department: department ?? undefined, priority: priority || 0 },
         });
         // CRIT-01: Audit log — was missing on all mutating routes
         await auditLog(request.user.userId, 'RBAC_ROLE_CREATED', 'Role', role.id, undefined, { name, department }, request)
@@ -79,17 +108,18 @@ export default async function rbacRoutes(app: FastifyInstance) {
   );
 
   // Update role
-  app.patch<{ Params: { id: string }; Body: { name?: string; description?: string; department?: string; priority?: number; isActive?: boolean } }>(
+  app.patch<{ Params: { id: string } }>(
     '/:id',
     async (request, reply) => {
+      const { id } = request.params;
+      const validatedData = updateRoleSchema.parse(request.body);
       try {
-        const { id } = request.params;
         const oldRole = await prisma.role.findUnique({ where: { id }, select: { name: true, department: true, isActive: true, priority: true } })
         const role = await prisma.role.update({
           where: { id },
-          data: request.body,
+          data: validatedData as any,
         });
-        await auditLog(request.user.userId, 'RBAC_ROLE_UPDATED', 'Role', id, oldRole ?? undefined, request.body, request)
+        await auditLog(request.user.userId, 'RBAC_ROLE_UPDATED', 'Role', id, oldRole ?? undefined, validatedData, request)
         return { success: true, message: 'Role updated', data: role };
       } catch (error) {
         request.log.error(error);
@@ -99,12 +129,12 @@ export default async function rbacRoutes(app: FastifyInstance) {
   );
 
   // Clone role
-  app.post<{ Params: { id: string }; Body: { name: string } }>(
+  app.post<{ Params: { id: string } }>(
     '/:id/clone',
     async (request, reply) => {
+      const { id } = request.params;
+      const { name } = cloneRoleSchema.parse(request.body);
       try {
-        const { id } = request.params;
-        const { name } = request.body;
 
         const sourceRole = await prisma.role.findUnique({
           where: { id },
@@ -168,13 +198,12 @@ export default async function rbacRoutes(app: FastifyInstance) {
   });
 
   // Bulk update permissions for a role
-  app.post<{ Params: { id: string }, Body: { permissionIds: string[] } }>(
+  app.post<{ Params: { id: string } }>(
     '/:id/permissions',
     async (request, reply) => {
+      const { id } = request.params;
+      const { permissionIds } = updatePermissionsSchema.parse(request.body);
       try {
-        const { id } = request.params;
-        const { permissionIds } = request.body;
-
         // Transaction to delete old and create new
         await prisma.$transaction([
           prisma.rolePermission.deleteMany({ where: { roleId: id } }),
@@ -199,12 +228,12 @@ export default async function rbacRoutes(app: FastifyInstance) {
   // ── User Assignment ───────────────────────────────────────────────────
 
   // Assign a role to a user
-  app.post<{ Params: { id: string }, Body: { roleId: string; expiresAt?: string } }>(
+  app.post<{ Params: { id: string } }>(
     '/users/:id/roles',
     async (request, reply) => {
+      const { id: userId } = request.params;
+      const { roleId, expiresAt } = assignRoleSchema.parse(request.body);
       try {
-        const { id: userId } = request.params;
-        const { roleId, expiresAt } = request.body;
 
         const assignment = await prisma.userRoleMapping.upsert({
           where: {

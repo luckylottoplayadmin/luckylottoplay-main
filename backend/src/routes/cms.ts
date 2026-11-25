@@ -1,16 +1,40 @@
 import { FastifyPluginAsync } from 'fastify'
-import { PrismaClient } from '@prisma/client'
+import { z } from 'zod'
+import { prisma } from '../server'
 import { auditLog } from '../middleware/auth'
 import crypto from 'crypto'
 
-const prisma = new PrismaClient()
+const cmsPageSchema = z.object({
+  title: z.string().trim().min(1).max(200),
+  slug: z.string().trim().min(1).max(120).regex(/^[a-z0-9-]+$/i),
+  content: z.string().max(200_000),
+  metaTitle: z.string().max(200).optional().nullable(),
+  metaDesc: z.string().max(500).optional().nullable(),
+  isActive: z.boolean().optional(),
+})
+
+const cmsBannerSchema = z.object({
+  title: z.string().trim().min(1).max(200),
+  description: z.string().max(1000).optional().nullable(),
+  imageUrl: z.string().min(1).max(500),
+  mobileUrl: z.string().max(500).optional().nullable(),
+  linkUrl: z.string().max(500).optional().nullable(),
+  backgroundColor: z.string().max(50).optional().nullable(),
+  position: z.string().max(50).optional(),
+  isActive: z.boolean().optional(),
+  startDate: z.string().optional().nullable(),
+  endDate: z.string().optional().nullable(),
+  sortOrder: z.number().int().min(0).max(10000).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional().nullable(),
+})
 
 const cmsRoutes: FastifyPluginAsync = async (app) => {
   // ── Pages Management ──────────────────────────────────────────────────────
 
   app.get('/pages', async (request, reply) => {
     const { page = '1', limit = '20', search, status } = request.query as Record<string, string>
-    const skip = (Number(page) - 1) * Number(limit)
+    const limitNum = Math.min(Math.max(1, Number(limit) || 20), 100)
+    const skip = (Math.max(1, Number(page) || 1) - 1) * limitNum
 
     const where: any = {}
     if (status === 'PUBLISHED') where.isActive = true
@@ -26,22 +50,22 @@ const cmsRoutes: FastifyPluginAsync = async (app) => {
       prisma.cmsPage.findMany({
         where,
         skip,
-        take: Number(limit),
+        take: limitNum,
         orderBy: { updatedAt: 'desc' }
       }),
       prisma.cmsPage.count({ where })
     ])
 
-    return reply.send({ success: true, data: pages, pagination: { page: Number(page), limit: Number(limit), total } })
+    return reply.send({ success: true, data: pages, pagination: { page: Math.max(1, Number(page) || 1), limit: limitNum, total } })
   })
 
   app.post('/pages', async (request, reply) => {
-    const { title, slug, content, metaTitle, metaDesc, isActive } = request.body as any
+    const { title, slug, content, metaTitle, metaDesc, isActive } = cmsPageSchema.parse(request.body)
     const existing = await prisma.cmsPage.findUnique({ where: { slug } })
     if (existing) return reply.status(400).send({ success: false, error: 'Slug already exists' })
 
     const cmsPage = await prisma.cmsPage.create({
-      data: { title, slug, content, metaTitle, metaDesc, isActive }
+      data: { title, slug, content, metaTitle: metaTitle ?? undefined, metaDesc: metaDesc ?? undefined, isActive }
     })
     
     await auditLog(request.user?.userId || 'system', 'PAGE_CREATE', 'CmsPage', cmsPage.id, undefined, { slug }, request)
@@ -50,14 +74,23 @@ const cmsRoutes: FastifyPluginAsync = async (app) => {
 
   app.put('/pages/:id', async (request, reply) => {
     const { id } = request.params as { id: string }
-    const { title, slug, content, metaTitle, metaDesc, isActive } = request.body as any
+    const { title, slug, content, metaTitle, metaDesc, isActive } = cmsPageSchema.partial().parse(request.body)
     
-    const existing = await prisma.cmsPage.findUnique({ where: { slug } })
-    if (existing && existing.id !== id) return reply.status(400).send({ success: false, error: 'Slug already exists on another page' })
+    if (slug) {
+      const existing = await prisma.cmsPage.findUnique({ where: { slug } })
+      if (existing && existing.id !== id) return reply.status(400).send({ success: false, error: 'Slug already exists on another page' })
+    }
 
     const cmsPage = await prisma.cmsPage.update({
       where: { id },
-      data: { title, slug, content, metaTitle, metaDesc, isActive }
+      data: {
+        ...(title !== undefined && { title }),
+        ...(slug !== undefined && { slug }),
+        ...(content !== undefined && { content }),
+        ...(metaTitle !== undefined && { metaTitle }),
+        ...(metaDesc !== undefined && { metaDesc }),
+        ...(isActive !== undefined && { isActive }),
+      }
     })
     
     await auditLog(request.user?.userId || 'system', 'PAGE_UPDATE', 'CmsPage', id, undefined, { slug }, request)
@@ -75,7 +108,8 @@ const cmsRoutes: FastifyPluginAsync = async (app) => {
 
   app.get('/banners', async (request, reply) => {
     const { page = '1', limit = '20', search, position, status } = request.query as Record<string, string>
-    const skip = (Number(page) - 1) * Number(limit)
+    const limitNum = Math.min(Math.max(1, Number(limit) || 20), 100)
+    const skip = (Math.max(1, Number(page) || 1) - 1) * limitNum
 
     const where: any = {}
     if (position) where.position = position
@@ -101,19 +135,22 @@ const cmsRoutes: FastifyPluginAsync = async (app) => {
       prisma.banner.findMany({
         where,
         skip,
-        take: Number(limit),
+        take: limitNum,
         orderBy: [{ sortOrder: 'asc' }, { createdAt: 'desc' }]
       }),
       prisma.banner.count({ where })
     ])
 
-    return reply.send({ success: true, data: banners, pagination: { page: Number(page), limit: Number(limit), total } })
+    return reply.send({ success: true, data: banners, pagination: { page: Math.max(1, Number(page) || 1), limit: limitNum, total } })
   })
 
   app.post('/banners', async (request, reply) => {
-    const data = request.body as any
-    if (data.startDate) data.startDate = new Date(data.startDate)
-    if (data.endDate) data.endDate = new Date(data.endDate)
+    const parsed = cmsBannerSchema.parse(request.body)
+    const data: any = {
+      ...parsed,
+      startDate: parsed.startDate ? new Date(parsed.startDate) : null,
+      endDate: parsed.endDate ? new Date(parsed.endDate) : null,
+    }
 
     const banner = await prisma.banner.create({ data })
     await auditLog(request.user?.userId || 'system', 'BANNER_CREATE', 'Banner', banner.id, undefined, { title: banner.title }, request)
@@ -122,9 +159,10 @@ const cmsRoutes: FastifyPluginAsync = async (app) => {
 
   app.put('/banners/:id', async (request, reply) => {
     const { id } = request.params as { id: string }
-    const data = request.body as any
-    if (data.startDate) data.startDate = new Date(data.startDate)
-    if (data.endDate) data.endDate = new Date(data.endDate)
+    const parsed = cmsBannerSchema.partial().parse(request.body)
+    const data: any = { ...parsed }
+    if (parsed.startDate !== undefined) data.startDate = parsed.startDate ? new Date(parsed.startDate) : null
+    if (parsed.endDate !== undefined) data.endDate = parsed.endDate ? new Date(parsed.endDate) : null
 
     const banner = await prisma.banner.update({ where: { id }, data })
     await auditLog(request.user?.userId || 'system', 'BANNER_UPDATE', 'Banner', id, undefined, { title: banner.title }, request)

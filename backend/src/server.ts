@@ -39,6 +39,7 @@ import settingsRoutes from './routes/settings'
 import rbacRoutes from './routes/rbac'
 
 import { initCronJobs } from './jobs/cron'
+import { resolveClientIp } from './middleware/sensitiveRateLimit'
 
 // Initialize Prisma
 export const prisma = new PrismaClient({
@@ -127,7 +128,7 @@ async function buildApp() {
     timeWindow: '1 minute',
     redis,
     skipOnError: true,
-    keyGenerator: (req) => req.ip,
+    keyGenerator: (req) => resolveClientIp(req),
   })
 
   // ── JWT ───────────────────────────────────────────────
