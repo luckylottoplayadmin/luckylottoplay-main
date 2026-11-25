@@ -8,6 +8,8 @@ import { useMutation } from '@tanstack/react-query'
 import { authService } from '@/services/auth.service'
 import { Eye, EyeOff, User, Mail, Lock, Calendar, Globe, Phone } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { motion, AnimatePresence } from 'framer-motion'
+import { EASE_OUT_EXPO } from '@/components/UI/MotionPrimitives'
 
 const COUNTRIES = [
   { code: 'AU', name: 'Australia', dialCode: '+61' },
@@ -126,12 +128,19 @@ export default function RegisterPage() {
   }
 
   return (
-    <div style={{
-      minHeight: '100vh', background: 'var(--gradient-hero)',
+    <div className="animated-hero-bg" style={{
+      minHeight: '100vh',
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       padding: '90px 20px 20px',
     }}>
-      <div style={{ width: '100%', maxWidth: '480px' }}>
+      <div className="ambient-orb ambient-orb-1" aria-hidden="true" />
+      <div className="ambient-orb ambient-orb-2" aria-hidden="true" />
+      <motion.div
+        initial={{ opacity: 0, y: 24, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.5, ease: EASE_OUT_EXPO }}
+        style={{ width: '100%', maxWidth: '480px', position: 'relative', zIndex: 1 }}
+      >
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
           <Link to="/" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', color: 'white', fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 900 }}>
             <BrandLogo />
@@ -162,8 +171,16 @@ export default function RegisterPage() {
         <div className="card">
           <div className="card-body">
             <form onSubmit={handleSubmit(onSubmit)}>
+              <AnimatePresence mode="wait">
               {step === 1 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <motion.div
+                  key="reg-step-1"
+                  initial={{ opacity: 0, x: -16 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 16 }}
+                  transition={{ duration: 0.25, ease: EASE_OUT_EXPO }}
+                  style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}
+                >
                   <div className="grid-2">
                     <div className="form-group">
                       <label className="form-label" htmlFor="firstName">First Name<span className="required" aria-hidden="true">*</span></label>
@@ -226,9 +243,16 @@ export default function RegisterPage() {
                   <button type="button" className="btn btn-primary btn-lg btn-full" onClick={handleNext}>
                     Continue
                   </button>
-                </div>
+                </motion.div>
               ) : step === 2 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <motion.div
+                  key="reg-step-2"
+                  initial={{ opacity: 0, x: 16 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -16 }}
+                  transition={{ duration: 0.25, ease: EASE_OUT_EXPO }}
+                  style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}
+                >
                   <div className="form-group">
                     <label className="form-label" htmlFor="username">Username<span className="required" aria-hidden="true">*</span></label>
                     <input {...register('username')} className={`form-input ${errors.username ? 'error' : ''}`} placeholder="jane_smith" id="username" autoComplete="username" />
@@ -278,9 +302,16 @@ export default function RegisterPage() {
                       {mutation.isPending ? <><div className="btn-spinner" /> Creating...</> : 'Create Account'}
                     </button>
                   </div>
-                </div>
+                </motion.div>
               ) : step === 3 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', textAlign: 'center' }}>
+                <motion.div
+                  key="reg-step-3"
+                  initial={{ opacity: 0, scale: 0.96 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.96 }}
+                  transition={{ duration: 0.25, ease: EASE_OUT_EXPO }}
+                  style={{ display: 'flex', flexDirection: 'column', gap: '16px', textAlign: 'center' }}
+                >
                   <div style={{ marginBottom: '10px' }}>
                     <div style={{ width: '60px', height: '60px', borderRadius: '50%', background: 'rgba(59, 130, 246, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', color: '#3b82f6' }}>
                       <Mail size={30} />
@@ -323,15 +354,16 @@ export default function RegisterPage() {
                       {resendMutation.isPending ? 'Sending...' : "Didn't receive it? Resend code"}
                     </button>
                   </div>
-                </div>
+                </motion.div>
               ) : null}
+              </AnimatePresence>
             </form>
 
             <div className="divider-label"><span>Already have an account?</span></div>
             <Link to="/login" className="btn btn-outline btn-full">Sign In</Link>
           </div>
         </div>
-      </div>
+      </motion.div>
     </div>
   )
 }

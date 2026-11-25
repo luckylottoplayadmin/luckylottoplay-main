@@ -1,4 +1,5 @@
 import { useCountdown } from '@/hooks/useCountdown'
+import { motion } from 'framer-motion'
 
 interface CountdownTimerProps {
   targetDate: string | Date | null
@@ -56,7 +57,16 @@ export default function CountdownTimer({ targetDate, size = 'md', label, onExpir
         </div>
         <div className="countdown-sep" style={sepStyle}>:</div>
         <div className="countdown-unit">
-          <div className="countdown-value" style={valueStyle}>{String(seconds).padStart(2, '0')}</div>
+          <motion.div
+            key={seconds}
+            initial={{ y: -4, opacity: 0.7 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ duration: 0.18, ease: 'easeOut' }}
+            className="countdown-value"
+            style={valueStyle}
+          >
+            {String(seconds).padStart(2, '0')}
+          </motion.div>
           <div className="countdown-label" style={labelStyle}>Sec</div>
         </div>
       </div>

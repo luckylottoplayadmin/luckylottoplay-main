@@ -11,6 +11,8 @@ import GoldCoin from '@/components/common/GoldCoin'
 import { Ticket, Zap, RefreshCw, ChevronRight, Info } from 'lucide-react'
 import toast from 'react-hot-toast'
 import DrawAnimationModal from '@/components/games/DrawAnimationModal'
+import { motion, AnimatePresence } from 'framer-motion'
+import { EASE_OUT_EXPO } from '@/components/UI/MotionPrimitives'
 
 export default function GameDetailPage() {
   const { slug } = useParams<{ slug: string }>()
@@ -145,8 +147,10 @@ export default function GameDetailPage() {
   return (
     <div className="page-wrapper">
       {/* Hero */}
-      <div style={{ background: 'var(--gradient-hero)', padding: '24px 0', color: 'white' }}>
-        <div className="container">
+      <div className="animated-hero-bg" style={{ padding: '24px 0', color: 'white' }}>
+        <div className="ambient-orb ambient-orb-1" aria-hidden="true" />
+        <div className="ambient-orb ambient-orb-2" aria-hidden="true" />
+        <div className="container" style={{ position: 'relative', zIndex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', marginBottom: '16px', fontSize: '14px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', opacity: 0.6 }}>
               <Link to="/games" style={{ color: 'inherit' }}>Games</Link>
@@ -235,9 +239,17 @@ export default function GameDetailPage() {
       </div>
 
       <div className="container" style={{ padding: '32px var(--space-lg)' }}>
+        <AnimatePresence mode="wait">
         {/* ── Play Tab ── */}
         {activeTab === 'play' && (
-          <div className="game-play-grid">
+          <motion.div
+            key="play-tab"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.25, ease: EASE_OUT_EXPO }}
+            className="game-play-grid"
+          >
             {/* Number Picker */}
             <div className="card" style={{ minWidth: 0, overflow: 'hidden' }}>
               <div className="card-header" style={{ flexWrap: 'wrap', gap: '16px' }}>
@@ -248,7 +260,7 @@ export default function GameDetailPage() {
                     onClick={() => quickPickMutation.mutate(lines.length)}
                     disabled={quickPickMutation.isPending}
                   >
-                    <RefreshCw size={14} /> Quick Pick
+                    <RefreshCw size={14} style={{ animation: quickPickMutation.isPending ? 'spin 0.8s linear infinite' : undefined }} /> Quick Pick
                   </button>
                 </div>
               </div>
@@ -461,12 +473,19 @@ export default function GameDetailPage() {
                 <Zap size={11} style={{ display: 'inline', verticalAlign: 'middle' }} /> Quick Pick available for instant selection
               </div>
             </div>
-          </div>
+          </motion.div>
         )}
 
         {/* ── Prize Divisions Tab ── */}
         {activeTab === 'prizes' && (
-          <div className="card">
+          <motion.div
+            key="prizes-tab"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.25, ease: EASE_OUT_EXPO }}
+            className="card"
+          >
             <div className="card-header">
               <h2 className="modal-title">Prize Divisions</h2>
               <div style={{ fontSize: '14px', color: 'var(--text-muted)' }}>
@@ -508,12 +527,20 @@ export default function GameDetailPage() {
                 </tbody>
               </table>
             </div>
-          </div>
+          </motion.div>
         )}
 
         {/* ── How to Play Tab ── */}
         {activeTab === 'how' && (
-          <div className="card card-body" style={{ maxWidth: '720px' }}>
+          <motion.div
+            key="how-tab"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.25, ease: EASE_OUT_EXPO }}
+            className="card card-body"
+            style={{ maxWidth: '720px' }}
+          >
             <h2 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '24px', marginBottom: '20px' }}>
               How to Play {game.name}
             </h2>
@@ -530,8 +557,9 @@ export default function GameDetailPage() {
                 <li>Each purchase enters <strong>one draw</strong></li>
               </ul>
             </div>
-          </div>
+          </motion.div>
         )}
+        </AnimatePresence>
       </div>
       <DrawAnimationModal
         isOpen={isDrawModalOpen}

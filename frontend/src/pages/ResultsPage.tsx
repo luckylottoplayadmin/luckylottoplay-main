@@ -4,6 +4,7 @@ import { gamesService } from '@/services/games.service'
 import { Pagination } from '@/components/UI'
 import NumberBall from '@/components/UI/NumberBall'
 import { Calendar, Search } from 'lucide-react'
+import { FadeInUp } from '@/components/UI/MotionPrimitives'
 
 export default function ResultsPage() {
   const [page, setPage] = useState(1)
@@ -18,14 +19,14 @@ export default function ResultsPage() {
   return (
     <div className="page-wrapper section">
       <div className="container">
-        <div className="section-header">
+        <FadeInUp className="section-header">
           <div>
             <h1 className="section-title">Latest Results</h1>
             <div className="section-subtitle">Winning numbers from recent draws</div>
           </div>
-        </div>
+        </FadeInUp>
 
-        <div className="card">
+        <FadeInUp delay={0.1} className="card">
           <div className="table-wrapper" style={{ border: 'none' }}>
             <table>
               <thead>
@@ -71,7 +72,7 @@ export default function ResultsPage() {
               <Pagination page={drawsData.pagination.page} pages={drawsData.pagination.pages} onPage={setPage} />
             </div>
           )}
-        </div>
+        </FadeInUp>
       </div>
     </div>
   )

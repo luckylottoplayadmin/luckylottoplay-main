@@ -5,6 +5,7 @@ import { gamesService } from '@/services/games.service'
 import CountdownTimer from '@/components/UI/CountdownTimer'
 import GoldCoin from '@/components/common/GoldCoin'
 import { Search, Filter, Zap, ChevronRight } from 'lucide-react'
+import { FadeInUp, StaggerContainer, StaggerItem } from '@/components/UI/MotionPrimitives'
 
 export default function GamesPageFull() {
   const [search, setSearch] = useState('')
@@ -24,21 +25,23 @@ export default function GamesPageFull() {
       {/* Hero */}
       <div className="section" style={{ paddingBottom: 0 }}>
         <div className="container">
-          <div style={{ background: 'var(--gradient-hero)', padding: '50px 40px', color: 'white', borderRadius: '24px', boxShadow: '0 20px 40px rgba(15, 37, 96, 0.15)', position: 'relative', overflow: 'hidden' }}>
+          <FadeInUp className="animated-hero-bg" style={{ padding: '50px 40px', color: 'white', borderRadius: '24px', boxShadow: '0 20px 44px rgba(15, 37, 96, 0.22)', position: 'relative', overflow: 'hidden' }}>
+            <div className="ambient-orb ambient-orb-1" aria-hidden="true" />
+            <div className="ambient-orb ambient-orb-2" aria-hidden="true" />
             <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '52px', fontWeight: 900, letterSpacing: '-0.03em', marginBottom: '12px', position: 'relative', zIndex: 1 }}>
               All <span style={{ background: 'var(--gradient-gold)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>Lottery</span> Games
             </h1>
             <p style={{ fontSize: '18px', opacity: 0.8, maxWidth: '500px', position: 'relative', zIndex: 1 }}>
               World's biggest jackpots across 9 games. Pick your lucky numbers today.
             </p>
-          </div>
+          </FadeInUp>
         </div>
       </div>
 
       <div className="section">
         <div className="container">
           {/* Search */}
-          <div className="input-wrapper has-icon-left" style={{ maxWidth: '400px', margin: '0 auto 32px auto' }}>
+          <FadeInUp delay={0.1} className="input-wrapper has-icon-left" style={{ maxWidth: '400px', margin: '0 auto 32px auto' }}>
             <span className="input-icon"><Search size={16} /></span>
             <input
               type="search"
@@ -47,7 +50,7 @@ export default function GamesPageFull() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
-          </div>
+          </FadeInUp>
 
           {/* Games Grid */}
           {isLoading ? (
@@ -64,11 +67,13 @@ export default function GamesPageFull() {
               ))}
             </div>
           ) : (
-            <div className="grid-3">
+            <StaggerContainer className="grid-3">
               {filtered.map((game: any, i: number) => (
-                <GameCard key={game.id} game={game} index={i} />
+                <StaggerItem key={game.id}>
+                  <GameCard game={game} index={i} />
+                </StaggerItem>
               ))}
-            </div>
+            </StaggerContainer>
           )}
 
           {filtered.length === 0 && !isLoading && (
@@ -87,16 +92,16 @@ export default function GamesPageFull() {
 function GameCard({ game }: { game: any; index: number }) {
   const getGameStyle = (slug: string) => {
     switch (slug) {
-      case 'saturday-lotto': return { bg: '#ff5a4d', title: 'white', prize: 'white' }
-      case 'megadraw': return { bg: '#00c853', title: 'white', prize: '#ffeb3b' }
-      case 'powerball': return { bg: '#0077b6', title: 'white', prize: '#ffeb3b' }
-      case 'weekday-windfall': return { bg: '#9b5de5', title: 'white', prize: 'white' }
-      case 'set-for-life': return { bg: '#fca311', title: 'white', prize: 'white' }
-      case 'super66': return { bg: '#c026d3', title: 'white', prize: 'white' }
-      case 'lucky-lotteries-mega-jackpot': return { bg: '#eab308', title: 'white', prize: 'white' }
-      case 'lucky-lotteries-super-jackpot': return { bg: '#14b8a6', title: 'white', prize: 'white' }
-      case 'lotto-strike': return { bg: '#6366f1', title: 'white', prize: 'white' }
-      default: return { bg: '#3b82f6', title: 'white', prize: 'white' }
+      case 'saturday-lotto': return { bg: 'linear-gradient(145deg, #ff6b5e 0%, #e63946 100%)', title: 'white', prize: 'white' }
+      case 'megadraw': return { bg: 'linear-gradient(145deg, #00d95a 0%, #00963f 100%)', title: 'white', prize: '#ffeb3b' }
+      case 'powerball': return { bg: 'linear-gradient(145deg, #008cd6 0%, #005587 100%)', title: 'white', prize: '#ffeb3b' }
+      case 'weekday-windfall': return { bg: 'linear-gradient(145deg, #a86cf0 0%, #7236c4 100%)', title: 'white', prize: 'white' }
+      case 'set-for-life': return { bg: 'linear-gradient(145deg, #ffb42b 0%, #e07b00 100%)', title: 'white', prize: 'white' }
+      case 'super66': return { bg: 'linear-gradient(145deg, #d938ec 0%, #9317a6 100%)', title: 'white', prize: 'white' }
+      case 'lucky-lotteries-mega-jackpot': return { bg: 'linear-gradient(145deg, #f5c31b 0%, #ca8a04 100%)', title: 'white', prize: 'white' }
+      case 'lucky-lotteries-super-jackpot': return { bg: 'linear-gradient(145deg, #22d3be 0%, #0d9488 100%)', title: 'white', prize: 'white' }
+      case 'lotto-strike': return { bg: 'linear-gradient(145deg, #7478ff 0%, #4338ca 100%)', title: 'white', prize: 'white' }
+      default: return { bg: 'linear-gradient(145deg, #4b91ff 0%, #1d4ed8 100%)', title: 'white', prize: 'white' }
     }
   }
 

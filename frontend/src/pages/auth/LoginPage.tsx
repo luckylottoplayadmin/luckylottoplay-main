@@ -9,6 +9,8 @@ import { authService } from '@/services/auth.service'
 import { useAuthStore } from '@/store/authStore'
 import { Eye, EyeOff, Mail, Lock, Zap } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { motion } from 'framer-motion'
+import { EASE_OUT_EXPO } from '@/components/UI/MotionPrimitives'
 
 const schema = z.object({
   email: z.string().email('Invalid email address'),
@@ -68,15 +70,21 @@ export default function LoginPage() {
   const onSubmit = (data: FormData) => mutation.mutate(data as any)
 
   return (
-    <main className="login-page-main" style={{
+    <main className="login-page-main animated-hero-bg" style={{
       minHeight: '100vh',
-      background: 'var(--gradient-hero)',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       padding: '80px 20px 20px',
     }}>
-      <div style={{ width: '100%', maxWidth: '420px' }}>
+      <div className="ambient-orb ambient-orb-1" aria-hidden="true" />
+      <div className="ambient-orb ambient-orb-2" aria-hidden="true" />
+      <motion.div
+        initial={{ opacity: 0, y: 24, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.5, ease: EASE_OUT_EXPO }}
+        style={{ width: '100%', maxWidth: '420px', position: 'relative', zIndex: 1 }}
+      >
         {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
           <Link to="/" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', color: 'white', fontFamily: 'var(--font-display)', fontSize: '28px', fontWeight: 900 }}>
@@ -182,7 +190,7 @@ export default function LoginPage() {
         <div style={{ textAlign: 'center', marginTop: '16px', fontSize: '12px', color: '#94A3B8' }}>
           18+ only | Gamble Responsibly
         </div>
-      </div>
+      </motion.div>
     </main>
   )
 }

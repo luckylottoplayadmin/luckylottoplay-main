@@ -4,6 +4,7 @@ import { Gift, Zap, ShieldCheck, Copy, Check } from 'lucide-react'
 import GoldCoin from '@/components/common/GoldCoin'
 import { useAuthStore } from '@/store/authStore'
 import toast from 'react-hot-toast'
+import { FadeInUp, StaggerContainer, StaggerItem } from '@/components/UI/MotionPrimitives'
 
 export default function PromotionsPage() {
   const { user } = useAuthStore()
@@ -61,38 +62,40 @@ export default function PromotionsPage() {
   return (
     <div className="page-wrapper section">
       <div className="container" style={{ maxWidth: '1000px' }}>
-        <div style={{ textAlign: 'center', marginBottom: '48px' }}>
+        <FadeInUp style={{ textAlign: 'center', marginBottom: '48px' }}>
           <h1 className="section-title">Promotions & Offers</h1>
           <div className="section-subtitle">Take advantage of our latest bonuses and special offers</div>
-        </div>
+        </FadeInUp>
 
-        <div className="grid-3">
+        <StaggerContainer className="grid-3">
           {promos.map((p) => (
-            <div key={p.id} className="card card-body" style={{ display: 'flex', flexDirection: 'column' }}>
-              <div style={{ marginBottom: '16px' }}>{p.icon}</div>
-              <h3 style={{ fontSize: '20px', fontWeight: 800, marginBottom: '12px' }}>{p.title}</h3>
-              <p style={{ color: 'var(--text-secondary)', marginBottom: '24px', flex: 1 }}>{p.desc}</p>
-              
-              {p.isButton ? (
-                <button
-                  onClick={p.action}
-                  disabled={p.disabled}
-                  className="btn btn-outline btn-full"
-                  style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-                >
-                  {p.cta === 'Link Copied!' && <Check size={16} />}
-                  {p.cta}
-                </button>
-              ) : (
-                <Link to={p.link} className="btn btn-outline btn-full" style={{ marginBottom: '12px' }}>
-                  {p.cta}
-                </Link>
-              )}
-              
-              <div style={{ fontSize: '11px', color: 'var(--text-muted)', textAlign: 'center' }}>T&Cs Apply. {p.terms}</div>
-            </div>
+            <StaggerItem key={p.id}>
+              <div className="card card-body card-lift promo-card-accent" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                <div className="feature-icon-box" style={{ marginBottom: '16px', width: '56px', height: '56px', borderRadius: '16px', background: 'var(--bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{p.icon}</div>
+                <h3 style={{ fontSize: '20px', fontWeight: 800, marginBottom: '12px' }}>{p.title}</h3>
+                <p style={{ color: 'var(--text-secondary)', marginBottom: '24px', flex: 1 }}>{p.desc}</p>
+                
+                {p.isButton ? (
+                  <button
+                    onClick={p.action}
+                    disabled={p.disabled}
+                    className="btn btn-outline btn-full"
+                    style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                  >
+                    {p.cta === 'Link Copied!' && <Check size={16} />}
+                    {p.cta}
+                  </button>
+                ) : (
+                  <Link to={p.link} className="btn btn-outline btn-full" style={{ marginBottom: '12px' }}>
+                    {p.cta}
+                  </Link>
+                )}
+                
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', textAlign: 'center' }}>T&Cs Apply. {p.terms}</div>
+              </div>
+            </StaggerItem>
           ))}
-        </div>
+        </StaggerContainer>
       </div>
     </div>
   )

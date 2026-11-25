@@ -4,6 +4,7 @@ import { walletService } from '@/services/wallet.service'
 import { ArrowDownLeft, Ticket, CheckCircle2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useNavigate } from 'react-router-dom'
+import { FadeInUp } from '@/components/UI/MotionPrimitives'
 
 export default function DepositPage() {
   const [code, setCode] = useState('')
@@ -45,14 +46,16 @@ export default function DepositPage() {
   return (
     <div className="page-wrapper section">
       <div className="container" style={{ maxWidth: '500px' }}>
-        <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: '36px', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <ArrowDownLeft size={32} style={{ color: 'var(--color-accent)' }} />
-          Add Funds
-        </h1>
+        <FadeInUp>
+          <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: '36px', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <ArrowDownLeft size={32} style={{ color: 'var(--color-accent)' }} />
+            Add Funds
+          </h1>
+        </FadeInUp>
 
-        <div className="card card-body" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        <FadeInUp delay={0.08} className="card card-body card-lift" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
           <div style={{ textAlign: 'center', padding: '20px 0' }}>
-            <Ticket size={48} style={{ color: 'var(--color-primary)', marginBottom: '16px', opacity: 0.8 }} />
+            <Ticket size={48} className="animate-float" style={{ color: 'var(--color-primary)', margin: '0 auto 16px', opacity: 0.85 }} />
             <h2 style={{ fontSize: '20px', marginBottom: '8px' }}>Redeem Coupon</h2>
             <p style={{ color: 'var(--text-muted)', fontSize: '14px', lineHeight: 1.5 }}>
               Enter your promotional coupon code below to instantly add funds to your wallet balance.
@@ -91,7 +94,7 @@ export default function DepositPage() {
               Need a coupon? Buy one here &rarr;
             </a>
           </div>
-        </div>
+        </FadeInUp>
       </div>
 
       {/* Loading Overlay Screen */}

@@ -3,14 +3,9 @@
    Australian lottery aesthetic: Deep navy + Gold + Emerald
    ============================================================ */
 
-@keyframes float-jackpot {
+@keyframes float-Sparkle-Legacy {
   0%, 100% { transform: translateY(0); text-shadow: 0 4px 10px rgba(0,0,0,0.15); }
   50% { transform: translateY(-6px); text-shadow: 0 12px 24px rgba(0,0,0,0.25); }
-}
-
-.animated-jackpot {
-  animation: float-jackpot 3s ease-in-out infinite;
-  display: inline-block;
 }
 
 /* ── CSS Custom Properties (Light Theme) ─────────────────── */
@@ -2273,4 +2268,476 @@ input:checked + .switch-track::after { transform: translateY(-50%) translateX(20
   0% { transform: translateY(0) scale(0.5); opacity: 0; }
   30% { opacity: 1; }
   100% { transform: translateY(-160px) scale(1.2); opacity: 0; }
+}
+
+/* ============================================================
+   Premium UI Animations & Visual Polish Layer
+   ============================================================ */
+
+@keyframes ui-shimmer-sweep {
+  0% { transform: translateX(-140%) skewX(-22deg); }
+  100% { transform: translateX(260%) skewX(-22deg); }
+}
+
+@keyframes ui-orb-float {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  33% { transform: translate3d(18px, -16px, 0) scale(1.06); }
+  66% { transform: translate3d(-14px, 12px, 0) scale(0.96); }
+}
+
+@keyframes ui-orb-float-reverse {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  33% { transform: translate3d(-20px, 14px, 0) scale(0.95); }
+  66% { transform: translate3d(16px, -18px, 0) scale(1.07); }
+}
+
+@keyframes ui-ball-pop {
+  0% { transform: scale(0.82); }
+  55% { transform: scale(1.16); }
+  100% { transform: scale(1); }
+}
+
+@keyframes ui-colon-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+
+@keyframes ui-gradient-shift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes ui-badge-ping {
+  0% { transform: scale(1); opacity: 0.85; }
+  75%, 100% { transform: scale(2.2); opacity: 0; }
+}
+
+/* ── Header Scroll Depth & Nav Polish ─────────────────────── */
+.header {
+  box-shadow: 0 1px 0 rgba(15, 37, 96, 0.04);
+}
+
+.header.scrolled {
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 10px 30px -10px rgba(15, 37, 96, 0.14);
+}
+
+[data-theme='dark'] .header.scrolled {
+  background: rgba(8, 14, 36, 0.96);
+  box-shadow: 0 12px 32px -10px rgba(0, 0, 0, 0.55);
+}
+
+.logo {
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.logo:hover {
+  transform: scale(1.03);
+}
+
+.nav-link {
+  position: relative;
+  overflow: hidden;
+}
+
+.nav-link::after {
+  content: '';
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 4px;
+  height: 2.5px;
+  border-radius: 999px;
+  background: var(--gradient-gold);
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform 0.25s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.nav-link:hover::after,
+.nav-link.active::after {
+  transform: scaleX(1);
+}
+
+.wallet-chip {
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease, background 0.2s ease, border-color 0.2s ease;
+}
+
+.wallet-chip::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 45%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+  transform: translateX(-160%) skewX(-22deg);
+  pointer-events: none;
+}
+
+.wallet-chip:hover {
+  transform: translateY(-2px);
+}
+
+.wallet-chip:hover::before {
+  animation: ui-shimmer-sweep 0.8s ease;
+}
+
+.notif-ping {
+  position: relative;
+}
+
+.notif-ping::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: 50%;
+  background: #ef4444;
+  animation: ui-badge-ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+/* ── Shimmer & Tactile Button Polish ──────────────────────── */
+.btn {
+  transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease, background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.btn-primary::before,
+.btn-gold::before,
+.btn-accent::before,
+.oz-btn-yellow::before,
+.oz-btn-white::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 45%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+  transform: translateX(-160%) skewX(-22deg);
+  pointer-events: none;
+}
+
+.btn-primary:hover:not(:disabled),
+.btn-gold:hover:not(:disabled),
+.btn-accent:hover:not(:disabled) {
+  transform: translateY(-2px);
+}
+
+.btn-primary:hover:not(:disabled)::before,
+.btn-gold:hover:not(:disabled)::before,
+.btn-accent:hover:not(:disabled)::before,
+.oz-btn-yellow:hover::before,
+.oz-btn-white:hover::before {
+  animation: ui-shimmer-sweep 0.85s ease;
+}
+
+.oz-btn-yellow,
+.oz-btn-white {
+  position: relative;
+  overflow: hidden;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: transform 0.24s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease, background-color 0.2s ease;
+}
+
+.oz-btn-yellow {
+  background: linear-gradient(135deg, #ffd54f 0%, #ffb300 100%);
+  box-shadow: 0 8px 22px rgba(255, 179, 0, 0.42);
+}
+
+.oz-btn-yellow:hover {
+  transform: translateY(-3px) scale(1.03);
+  box-shadow: 0 14px 28px rgba(255, 179, 0, 0.52);
+}
+
+.oz-btn-white {
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.16);
+}
+
+.oz-btn-white:hover {
+  transform: translateY(-3px) scale(1.03);
+  box-shadow: 0 14px 28px rgba(15, 23, 42, 0.22);
+}
+
+.oz-btn-yellow:active,
+.oz-btn-white:active {
+  transform: scale(0.97);
+}
+
+/* ── Ambient Decorative Orbs for Hero & Gradient Banners ─── */
+.ambient-orb {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  filter: blur(48px);
+  z-index: 0;
+  will-change: transform;
+}
+
+.ambient-orb-1 {
+  width: 340px;
+  height: 340px;
+  top: -110px;
+  right: -60px;
+  background: radial-gradient(circle, rgba(245, 166, 35, 0.34) 0%, rgba(245, 166, 35, 0) 70%);
+  animation: ui-orb-float 11s ease-in-out infinite;
+}
+
+.ambient-orb-2 {
+  width: 280px;
+  height: 280px;
+  bottom: -100px;
+  left: -60px;
+  background: radial-gradient(circle, rgba(56, 189, 248, 0.3) 0%, rgba(56, 189, 248, 0) 70%);
+  animation: ui-orb-float-reverse 13s ease-in-out infinite;
+}
+
+.ambient-orb-3 {
+  width: 220px;
+  height: 220px;
+  top: 25%;
+  left: 42%;
+  background: radial-gradient(circle, rgba(16, 185, 129, 0.18) 0%, rgba(16, 185, 129, 0) 70%);
+  animation: ui-orb-float 15s ease-in-out infinite;
+}
+
+.oz-hero-card {
+  background: linear-gradient(135deg, #1b42c2 0%, #2b5de4 48%, #1a3a8f 100%);
+  background-size: 200% 200%;
+  animation: ui-gradient-shift 12s ease infinite;
+  box-shadow: 0 22px 54px -12px rgba(27, 66, 194, 0.48), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.oz-hero-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 80% 35%, rgba(255, 232, 133, 0.16), transparent 55%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.wallet-balance-card {
+  background: linear-gradient(135deg, #0f1e4a 0%, #1a3a8f 50%, #102a6c 100%);
+  background-size: 200% 200%;
+  animation: ui-gradient-shift 14s ease infinite;
+  box-shadow: 0 20px 44px -14px rgba(15, 37, 96, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.16);
+}
+
+/* ── Rich Game Cards with Gloss Sweep & Logo Float ────────── */
+.game-card-new {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  box-shadow: 0 14px 32px -10px rgba(15, 23, 42, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.28) !important;
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.35s ease !important;
+}
+
+.game-card-new::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 22% 18%, rgba(255, 255, 255, 0.24), transparent 56%);
+  pointer-events: none;
+}
+
+.game-card-new::after {
+  content: '';
+  position: absolute;
+  top: -10%;
+  left: 0;
+  width: 45%;
+  height: 120%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.28), transparent);
+  transform: translateX(-160%) skewX(-22deg);
+  pointer-events: none;
+}
+
+.game-card-new:hover {
+  transform: translateY(-10px) scale(1.022);
+  box-shadow: 0 26px 50px -12px rgba(15, 23, 42, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.38) !important;
+}
+
+.game-card-new:hover::after {
+  animation: ui-shimmer-sweep 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.game-card-new img {
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.35s ease;
+}
+
+.game-card-new:hover img {
+  transform: translateY(-5px) scale(1.06);
+  filter: drop-shadow(0 12px 18px rgba(0, 0, 0, 0.34)) !important;
+}
+
+/* ── Elevated Feature, Step, Promo, Jackpot, Ticket & Stat Cards ── */
+.card-lift {
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s ease, border-color 0.25s ease;
+}
+
+.card-lift:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 18px 40px -14px rgba(15, 37, 96, 0.2);
+  border-color: rgba(26, 58, 143, 0.28);
+}
+
+[data-theme='dark'] .card-lift:hover {
+  box-shadow: 0 20px 44px -14px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(107, 158, 248, 0.25);
+  border-color: rgba(107, 158, 248, 0.35);
+}
+
+.feature-icon-box {
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.35s ease;
+}
+
+.card-lift:hover .feature-icon-box {
+  transform: scale(1.12) rotate(-4deg);
+}
+
+.step-emoji {
+  display: inline-block;
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.card-lift:hover .step-emoji {
+  transform: translateY(-6px) scale(1.12);
+}
+
+.stat-card {
+  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.28s ease, border-color 0.25s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+}
+
+.stat-card .stat-icon {
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.stat-card:hover .stat-icon {
+  transform: scale(1.1) rotate(-4deg);
+}
+
+/* ── 3D Glossy Lottery Number Balls ───────────────────────── */
+.number-ball {
+  position: relative;
+  overflow: hidden;
+  box-shadow: inset 0 -3px 6px rgba(0, 0, 0, 0.22), inset 0 2px 4px rgba(255, 255, 255, 0.38), 0 4px 10px rgba(15, 37, 96, 0.22);
+  transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.22s ease, filter 0.2s ease;
+}
+
+.number-ball::before {
+  content: '';
+  position: absolute;
+  top: 12%;
+  left: 20%;
+  width: 34%;
+  height: 22%;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.38);
+  pointer-events: none;
+}
+
+.number-ball.disabled::before {
+  display: none;
+}
+
+.number-ball.selected {
+  animation: ui-ball-pop 0.32s cubic-bezier(0.34, 1.56, 0.64, 1);
+  box-shadow: inset 0 -3px 6px rgba(180, 83, 9, 0.32), inset 0 2px 5px rgba(255, 255, 255, 0.5), 0 6px 18px rgba(245, 166, 35, 0.48);
+}
+
+.number-ball.winning {
+  box-shadow: inset 0 -3px 6px rgba(4, 120, 87, 0.32), inset 0 2px 5px rgba(255, 255, 255, 0.45), 0 4px 12px rgba(16, 185, 129, 0.35);
+}
+
+.number-ball.powerball {
+  box-shadow: inset 0 -3px 6px rgba(153, 27, 27, 0.32), inset 0 2px 5px rgba(255, 255, 255, 0.45), 0 4px 12px rgba(239, 68, 68, 0.35);
+}
+
+.number-ball.clickable:active {
+  transform: scale(0.92);
+}
+
+/* ── Countdown Timer Polish ───────────────────────────────── */
+.countdown-value {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 4px 12px rgba(15, 37, 96, 0.22);
+  font-variant-numeric: tabular-nums;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.countdown-sep {
+  animation: ui-colon-pulse 1.2s ease-in-out infinite;
+}
+
+/* ── Results Row & Table Row Hover Accent ─────────────────── */
+.result-row-card {
+  transition: transform 0.26s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.26s ease, border-color 0.25s ease;
+}
+
+.result-row-card:hover {
+  transform: translateX(6px);
+  box-shadow: var(--shadow-md);
+  border-color: rgba(245, 166, 35, 0.45);
+}
+
+/* ── Footer Link Micro-interaction ────────────────────────── */
+.footer-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: color 0.2s ease, transform 0.2s ease;
+}
+
+.footer-link:hover {
+  color: #ffffff;
+  transform: translateX(4px);
+}
+
+/* ── Auth & CTA Gradient Animation ────────────────────────── */
+.animated-hero-bg {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, #0b1638 0%, #1a3a8f 48%, #0f2560 100%) !important;
+  background-size: 200% 200% !important;
+  animation: ui-gradient-shift 14s ease infinite;
+}
+
+.promo-card-accent {
+  position: relative;
+  overflow: hidden;
+}
+
+.promo-card-accent::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: var(--gradient-gold);
+  opacity: 0.85;
+  transition: height 0.25s ease;
+}
+
+.promo-card-accent:hover::before {
+  height: 6px;
+}
+
+/* ── Accessibility: Respect Reduced Motion ────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

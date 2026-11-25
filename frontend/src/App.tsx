@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
+import { MotionConfig } from 'framer-motion'
 import { useAuthStore, getLegacyRefreshToken } from '@/store/authStore'
 import { useThemeStore } from '@/store/themeStore'
 import { refreshSession } from '@/services/api'
@@ -95,6 +96,7 @@ export default function App() {
   }, [isAuthenticated, accessToken])
 
   return (
+    <MotionConfig reducedMotion="user">
     <div className="app-root">
       <Header />
       <MaintenanceGuard>
@@ -166,5 +168,6 @@ export default function App() {
       <Footer />
       <FloatingSupport />
     </div>
+    </MotionConfig>
   )
 }

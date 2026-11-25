@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import GoldCoin from '@/components/common/GoldCoin'
+import { motion, AnimatePresence } from 'framer-motion'
 
 export default function Header() {
   const navigate = useNavigate()
@@ -22,7 +23,15 @@ export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const [scrolled, setScrolled] = useState(false)
   const userMenuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 12)
+    onScroll()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
 
   const { data: unreadData } = useQuery({
     queryKey: ['unread-count'],
@@ -72,7 +81,7 @@ export default function Header() {
 
   return (
     <>
-      <header className="header">
+      <header className={`header ${scrolled ? 'scrolled' : ''}`}>
       <div className="container">
         <div className="header-inner">
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -132,7 +141,7 @@ export default function Header() {
                 <Link to="/notifications" className="btn btn-ghost btn-icon desktop-only" style={{ position: 'relative' }} aria-label="View notifications">
                   <Bell size={18} />
                   {(unreadData ?? 0) > 0 && (
-                    <span style={{
+                    <span className="notif-ping" style={{
                       position: 'absolute', top: '6px', right: '6px',
                       width: '8px', height: '8px', borderRadius: '50%',
                       background: '#ef4444', border: '2px solid var(--bg-primary)',
@@ -161,11 +170,20 @@ export default function Header() {
                     }} />
                   </button>
 
+                  <AnimatePresence>
                   {userMenuOpen && (
-                    <div className="card" style={{
-                      position: 'absolute', right: 0, top: 'calc(100% + 8px)',
-                      width: '220px', zIndex: 200, padding: '6px',
-                    }}>
+                    <motion.div
+                      initial={{ opacity: 0, y: -8, scale: 0.96 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -6, scale: 0.96 }}
+                      transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+                      className="card"
+                      style={{
+                        position: 'absolute', right: 0, top: 'calc(100% + 8px)',
+                        width: '220px', zIndex: 200, padding: '6px',
+                        transformOrigin: 'top right',
+                      }}
+                    >
                       <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border-color)', marginBottom: '6px' }}>
                         <div style={{ fontWeight: 700, fontSize: '14px' }}>{user?.firstName} {user?.lastName}</div>
                         <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>{user?.email}</div>
@@ -201,8 +219,9 @@ export default function Header() {
                           Sign Out
                         </button>
                       </div>
-                    </div>
+                    </motion.div>
                   )}
+                  </AnimatePresence>
                 </div>
               </>
             ) : (
@@ -218,10 +237,24 @@ export default function Header() {
     </header>
 
       {/* Mobile Nav */}
+      <AnimatePresence>
       {mobileNavOpen && (
         <>
-          <div className="admin-sidebar-overlay" style={{ zIndex: 99 }} onClick={() => setMobileNavOpen(false)} />
-          <div style={{
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="admin-sidebar-overlay"
+            style={{ zIndex: 99 }}
+            onClick={() => setMobileNavOpen(false)}
+          />
+          <motion.div
+            initial={{ x: '-100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: '-100%' }}
+            transition={{ type: 'spring', stiffness: 360, damping: 34 }}
+            style={{
             position: 'fixed', top: 'var(--header-height)', left: 0, bottom: 0, width: '280px',
             background: 'var(--bg-card)', borderRight: '1px solid var(--border-color)',
             padding: 'var(--space-lg)', boxShadow: 'var(--shadow-xl)', zIndex: 100,
@@ -305,9 +338,10 @@ export default function Header() {
                 <Link to="/register" className="btn btn-gold" onClick={() => setMobileNavOpen(false)}>Get Started</Link>
               </div>
             )}
-          </div>
+          </motion.div>
         </>
       )}
+      </AnimatePresence>
     </>
   )
 }

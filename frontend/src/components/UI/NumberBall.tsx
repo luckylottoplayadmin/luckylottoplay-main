@@ -1,4 +1,5 @@
 import clsx from 'clsx'
+import { motion } from 'framer-motion'
 
 interface NumberBallProps {
   number: number
@@ -15,8 +16,13 @@ export default function NumberBall({
   onClick,
   clickable,
 }: NumberBallProps) {
+  const isInteractive = Boolean(clickable || onClick) && variant !== 'disabled'
+
   return (
-    <div
+    <motion.div
+      whileHover={isInteractive ? { scale: 1.16, y: -2 } : { scale: 1.08 }}
+      whileTap={isInteractive ? { scale: 0.92 } : undefined}
+      transition={{ type: 'spring', stiffness: 450, damping: 22 }}
       className={clsx(
         'number-ball',
         variant !== 'default' && variant,
@@ -32,6 +38,6 @@ export default function NumberBall({
       aria-label={`Number ${number}`}
     >
       {number}
-    </div>
+    </motion.div>
   )
 }
